@@ -1,0 +1,189 @@
+{
+  "_comment": "This file is generated. Please edit .homeycompose/app.json instead.",
+  "id": "com.energy.integrator",
+  "version": "1.0.0",
+  "compatibility": ">=12.4.0",
+  "sdk": 3,
+  "runtime": "nodejs",
+  "brandColor": "#00A896",
+  "platforms": [
+    "local"
+  ],
+  "name": {
+    "en": "Energy Integrator"
+  },
+  "description": {
+    "en": "Integrates different electrical devices into a single energy hub"
+  },
+  "category": [
+    "energy"
+  ],
+  "permissions": [
+    "homey:manager:api"
+  ],
+  "images": {
+    "small": "/assets/images/small.png",
+    "large": "/assets/images/large.png",
+    "xlarge": "/assets/images/xlarge.png"
+  },
+  "author": {
+    "name": "David Piper",
+    "email": "david.piper@normandygite.org.uk"
+  },
+  "drivers": [
+    {
+      "name": {
+        "en": "Power Integrator"
+      },
+      "class": "sensor",
+      "capabilities": [
+        "measure_power",
+        "meter_power",
+        "meter_power.today",
+        "measure_time",
+        "measure_interval"
+      ],
+      "capabilitiesOptions": {
+        "measure_power": {
+          "title": {
+            "en": "Power"
+          },
+          "units": {
+            "en": "W"
+          },
+          "decimals": 0,
+          "getable": true
+        },
+        "meter_power": {
+          "title": {
+            "en": "Energy"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "meter_power.today": {
+          "title": {
+            "en": "Energy Today"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "measure_time": {
+          "title": {
+            "en": "Epoch Time"
+          },
+          "units": {
+            "en": "ms"
+          },
+          "decimals": 0,
+          "getable": true,
+          "insights": true
+        }
+      },
+      "platforms": [
+        "local"
+      ],
+      "connectivity": [],
+      "images": {
+        "small": "/drivers/power-integrator/assets/images/small.png",
+        "large": "/drivers/power-integrator/assets/images/large.png",
+        "xlarge": "/drivers/power-integrator/assets/images/xlarge.png"
+      },
+      "pair": [
+        {
+          "id": "select_target_device",
+          "options": {
+            "title": {
+              "en": "Select Source Device"
+            }
+          }
+        },
+        {
+          "id": "select_target_capability",
+          "options": {
+            "title": {
+              "en": "Select Source Capability"
+            }
+          }
+        },
+        {
+          "id": "add_devices",
+          "template": "add_devices"
+        }
+      ],
+      "settings": [
+        {
+          "id": "reflected_device_id",
+          "type": "text",
+          "label": {
+            "en": "Source Device ID"
+          },
+          "hint": {
+            "en": "Paste the Homey UUID of the physical device you want to mirror."
+          },
+          "value": ""
+        },
+        {
+          "id": "reflected_capability_id",
+          "type": "text",
+          "label": {
+            "en": "Source Capability ID"
+          },
+          "hint": {
+            "en": "The exact capability key name (e.g., measure_power)."
+          },
+          "value": "measure_power"
+        }
+      ],
+      "id": "power-integrator"
+    }
+  ],
+  "capabilities": {
+    "measure_interval": {
+      "type": "number",
+      "getable": true,
+      "setable": false,
+      "icon": "/assets/time.svg",
+      "insights": true,
+      "uiComponent": "sensor",
+      "decimals": 3,
+      "title": {
+        "en": "Interval Time"
+      },
+      "units": {
+        "en": "s"
+      }
+    },
+    "measure_time": {
+      "type": "number",
+      "getable": true,
+      "setable": false,
+      "icon": "/assets/time.svg",
+      "insights": false,
+      "uiComponent": null,
+      "decimals": 0,
+      "title": {
+        "en": "Time"
+      },
+      "units": {
+        "en": "ms"
+      }
+    },
+    "string_interval": {
+      "type": "string",
+      "title": {
+        "en": "Event Interval"
+      },
+      "getable": true,
+      "setable": false,
+      "icon": "/assets/interval.svg",
+      "insights": false
+    }
+  }
+}

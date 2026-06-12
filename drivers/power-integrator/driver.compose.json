@@ -1,0 +1,107 @@
+{
+  "name": {
+    "en": "Power Integrator"
+  },
+  "class": "sensor",
+  "capabilities": [
+    "measure_power",
+    "meter_power",
+    "meter_power.today",
+    "measure_time",
+    "measure_interval"
+  ],
+  "capabilitiesOptions": {
+    "measure_power": {
+      "title": {
+        "en": "Power"
+      },
+      "units": {
+        "en": "W"
+      },
+      "decimals": 0,
+      "getable": true
+    },
+    "meter_power": {
+      "title": {
+        "en": "Energy"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "meter_power.today": {
+      "title": {
+        "en": "Energy Today"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "measure_time": {
+      "title": {
+        "en": "Epoch Time"
+      },
+      "units": {
+        "en": "ms"
+      },
+      "decimals": 0,
+      "getable": true,
+      "insights": true
+    }
+  },
+  "platforms": [
+    "local"
+  ],
+  "connectivity": [],
+  "images": {
+    "small": "{{driverAssetsPath}}/images/small.png",
+    "large": "{{driverAssetsPath}}/images/large.png",
+    "xlarge": "{{driverAssetsPath}}/images/xlarge.png"
+  },
+  "pair": [
+    {
+      "id": "select_target_device",
+      "options": {
+        "title": {
+          "en": "Select Source Device"
+        }
+      }
+    },
+    {
+      "id": "select_target_capability",
+      "options": {
+        "title": {
+          "en": "Select Source Capability"
+        }
+      }
+    }
+  ],
+  "settings": [
+    {
+      "id": "reflected_device_id",
+      "type": "text",
+      "label": {
+        "en": "Source Device ID"
+      },
+      "hint": {
+        "en": "Paste the Homey UUID of the physical device you want to mirror."
+      },
+      "value": ""
+    },
+    {
+      "id": "reflected_capability_id",
+      "type": "text",
+      "label": {
+        "en": "Source Capability ID"
+      },
+      "hint": {
+        "en": "The exact capability key name (e.g., measure_power)."
+      },
+      "value": "measure_power"
+    }
+  ]
+}
