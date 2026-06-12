@@ -64,20 +64,15 @@
   },
   "pair": [
     {
-      "id": "select_target_device",
-      "options": {
-        "title": {
-          "en": "Select Source Device"
-        }
+      "id": "list_devices",
+      "template": "list_devices",
+      "navigation": {
+        "next": "add_devices"
       }
     },
     {
-      "id": "select_target_capability",
-      "options": {
-        "title": {
-          "en": "Select Source Capability"
-        }
-      }
+      "id": "add_devices",
+      "template": "add_devices"
     }
   ],
   "settings": [
@@ -102,6 +97,11 @@
         "en": "The exact capability key name (e.g., measure_power)."
       },
       "value": "measure_power"
+    },
+    {
+      "id": "reflection_picker",
+      "type": "custom",
+      "template": "/drivers/power-integrator/settings/configure_reflection.html"
     }
   ]
 }

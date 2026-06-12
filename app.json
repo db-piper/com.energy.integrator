@@ -97,19 +97,10 @@
       },
       "pair": [
         {
-          "id": "select_target_device",
-          "options": {
-            "title": {
-              "en": "Select Source Device"
-            }
-          }
-        },
-        {
-          "id": "select_target_capability",
-          "options": {
-            "title": {
-              "en": "Select Source Capability"
-            }
+          "id": "list_devices",
+          "template": "list_devices",
+          "navigation": {
+            "next": "add_devices"
           }
         },
         {

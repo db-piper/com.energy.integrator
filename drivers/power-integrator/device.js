@@ -125,23 +125,47 @@ class PowerIntegratorDevice extends Homey.Device {
   async onSettings({ oldSettings, newSettings, changedKeys }) {
     this.log('Settings modification detected. Re-evaluating reflection pipeline...');
 
-    // We defer execution slightly to allow Homey to commit the new variables to storage
-    this.homey.setTimeout(async () => {
-      await this.updateTargetSubscription();
-    }, 1000);
+    // Directly intercept whenever either manual box OR picker dropdown modifies the targets
+    if (changedKeys.includes('reflected_device_id') || changedKeys.includes('reflected_capability_id')) {
+      this.log('[Device] Core target configurations updated. Re-binding hooks...');
 
-    return true; // Accept the settings save action cleanly
+      // Execute instantly. updateTargetSubscription() will read the fresh runtime state safely
+      await this.updateTargetSubscription();
+    }
+
+    return true;
   }
+  // async onSettings({ oldSettings, newSettings, changedKeys }) {
+  //   this.log('Settings modification detected. Re-evaluating reflection pipeline...');
+
+  //   // We defer execution slightly to allow Homey to commit the new variables to storage
+  //   this.homey.setTimeout(async () => {
+  //     await this.updateTargetSubscription();
+  //   }, 1000);
+
+  //   return true; // Accept the settings save action cleanly
+  // }
 
   /**
    * Clean up connections if the device gets deleted by the user
    */
   async onDeleted() {
-    if (this.targetDeviceInstance) {
-      this.targetDeviceInstance.removeAllListeners('capability');
+    // Explicitly destroy the capability instance connection wrapper if it exists
+    if (this.capabilityInstance) {
+      try {
+        this.capabilityInstance.destroy();
+      } catch (e) {
+        this.error('Error destroying capability wrapper on delete:', e);
+      }
     }
     this.log('Device destroyed. Connection closed cleanly.');
   }
+  // async onDeleted() {
+  //   if (this.targetDeviceInstance) {
+  //     this.targetDeviceInstance.removeAllListeners('capability');
+  //   }
+  //   this.log('Device destroyed. Connection closed cleanly.');
+  // }
 }
 
 module.exports = PowerIntegratorDevice;
