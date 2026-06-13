@@ -40,13 +40,13 @@ module.exports = class MyDriver extends Homey.Driver {
   }
 
   /**
-     * Main Repair Session Entry Point
-     */
-  onRepair(session) {
+   * Main Repair Session Entry Point
+   */
+  onRepair(session, sessionDevice) {
     this.log('--- Repair Session Tunnel Opened ---');
 
     // 1. Capture the exact device instance associated with this specific user session click
-    const sessionDevice = session.getDevice();
+    // const sessionDevice = session.getDevice();
     this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
 
     // 2. Expose the identity bridge so the iframe can request its own tracking context
@@ -60,36 +60,49 @@ module.exports = class MyDriver extends Homey.Driver {
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
-      const devices = this.homey.devices.getDevices();
-      const payload = {};
+      try {
+        if (!this.homeyApi) {
+          throw new Error('Web API client instance was not ready on Driver context.');
+        }
 
-      Object.values(devices)
-        .filter(device => device.getDriver().id !== 'power-integrator') // Avoid mirror loop feedback
-        .forEach(device => {
-          const zone = device.getZone();
-          payload[device.id] = {
-            id: device.id,
-            name: device.name,
-            zoneName: zone ? zone.name : 'No Zone',
-            capabilities: Object.keys(device.capabilities).map(capId => {
-              const capObj = device.homey.managerDrivers.getCapability(capId);
-              return {
-                id: capId,
-                title: (capObj && capObj.title) ? capObj.title : capId
-              };
-            })
-          };
-        });
+        // 1. Correctly await the Web API map fetch
+        const devicesMap = await this.homeyApi.devices.getDevices();
+        this.log(`setHandler:get_system_devices: devicesMap count: ${Object.values(devicesMap).length}`);
+        const payload = {};
 
-      // Simple alphabetized sort by name property
-      const sortedPayload = Object.fromEntries(
-        Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
-      );
+        Object.values(devicesMap)
+          .filter(device => device.driverId !== 'power-integrator') // Web API uses driverId string natively
+          .forEach(device => {
+            // 2. Web API objects include zoneName directly as a flat string property!
+            const zoneName = device.zoneName || 'No Zone';
 
-      this.log(`[Driver:power-integrator] --- Returning ${Object.keys(sortedPayload).length} alphabetized devices ---`);
-      return sortedPayload;
+            payload[device.id] = {
+              id: device.id,
+              name: device.name,
+              zoneName: zoneName,
+              // 3. Web API pre-populates titles directly on the capability sub-objects
+              capabilities: Object.keys(device.capabilities || {}).map(capId => {
+                return {
+                  id: capId,
+                  title: device.capabilities[capId].title || capId
+                };
+              })
+            };
+          });
+
+        // Simple alphabetized sort by name property
+        const sortedPayload = Object.fromEntries(
+          Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
+        );
+
+        this.log(`[Driver:power-integrator] --- Returning ${Object.keys(sortedPayload).length} alphabetized devices ---`);
+        return sortedPayload;
+
+      } catch (err) {
+        this.error('--- System Device Fetch Failed inside Repair Handler ---', err);
+        throw new Error(err.message || err.toString());
+      }
     });
-
     // 4. Handle incoming settings payloads targeted dynamically to the active instance
     session.setHandler('save_reflection_settings', async (payload) => {
       this.log('--- Received payload to commit to settings: ---', payload);
