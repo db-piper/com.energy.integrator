@@ -170,16 +170,6 @@
       "units": {
         "en": "ms"
       }
-    },
-    "string_interval": {
-      "type": "string",
-      "title": {
-        "en": "Event Interval"
-      },
-      "getable": true,
-      "setable": false,
-      "icon": "/assets/interval.svg",
-      "insights": false
     }
   }
 }
