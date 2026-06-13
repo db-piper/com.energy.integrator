@@ -82,11 +82,16 @@ module.exports = class MyDriver extends Homey.Driver {
             const zoneObj = zonesMap[device.zone];
             const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
 
-            // Convert capabilities map to an array of objects { id, title } for the HTML template
-            const capabilitiesArray = Object.keys(device.capabilities || {}).map(capId => {
+            // Extract capabilities natively using the Web API structure
+            // In the Web API, device.capabilitiesObj contains the properties for each capability
+            const targetCapabilities = device.capabilitiesObj || {};
+
+            const capabilitiesArray = Object.keys(targetCapabilities).map(capId => {
+              const capMetadata = targetCapabilities[capId];
               return {
                 id: capId,
-                title: device.capabilities[capId].title || capId
+                // Fall back to the raw key ID (like measure_power.load) if title isn't populated
+                title: (capMetadata && capMetadata.title) ? capMetadata.title : capId
               };
             });
 
