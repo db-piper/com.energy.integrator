@@ -15,7 +15,11 @@ class PowerIntegratorDevice extends Homey.Device {
     await this.initLocalWebApi();
 
     // Start listening to our configured target
-    await this.updateTargetSubscription();
+    const settings = this.getSettings();
+    const targetId = settings.reflected_device_id || null;
+    const targetCapability = settings.reflected_capability_id || null;
+
+    await this.updateTargetSubscription(targetId, targetCapability);
   }
 
   /**
@@ -35,7 +39,7 @@ class PowerIntegratorDevice extends Homey.Device {
   /**
    * Tears down any old listener and binds cleanly to the currently configured target settings
    */
-  async updateTargetSubscription() {
+  async updateTargetSubscription(targetId, targetCapability) {
     // 1. Clean up existing listener if the user changed settings or device is reloading
     if (this.capabilityInstance) {
       this.log('Destroying official capability instance wrapper...');
@@ -52,9 +56,9 @@ class PowerIntegratorDevice extends Homey.Device {
     }
     if (!this.homeyApi) return;
 
-    const settings = this.getSettings();
-    const targetId = settings.reflected_device_id;
-    const targetCapability = settings.reflected_capability_id;
+    // const settings = this.getSettings();
+    // const targetId = settings.reflected_device_id;
+    // const targetCapability = settings.reflected_capability_id;
 
     // If settings are blank (e.g., right after pairing), pause until configured
     if (!targetId || !targetCapability) {
@@ -89,7 +93,7 @@ class PowerIntegratorDevice extends Homey.Device {
   handleReflectedSignal(newValue, thisTime) {
 
     const homeyInstance = this.homey;
-    this.log(`PowerIntegratorDevice.handleReflectedSignal: newValue: ${newValue} thisTime: ${thisTime}`)
+    this.log(`PowerIntegratorDevice.handleReflectedSignal: name: ${this.getName()} newValue: ${newValue} thisTime: ${thisTime}`)
     const lastTime = this.getCapabilityValue('measure_time');
     const lastPower = this.getCapabilityValue('measure_power') || 0;
     const firstTime = lastTime === null;
@@ -128,9 +132,11 @@ class PowerIntegratorDevice extends Homey.Device {
     // Directly intercept whenever either manual box OR picker dropdown modifies the targets
     if (changedKeys.includes('reflected_device_id') || changedKeys.includes('reflected_capability_id')) {
       this.log('[Device] Core target configurations updated. Re-binding hooks...');
+      const targetId = newSettings.reflected_device_id;
+      const targetCapability = newSettings.reflected_capability_id;
 
-      // Execute instantly. updateTargetSubscription() will read the fresh runtime state safely
-      await this.updateTargetSubscription();
+      // Update the subscription to observed device and capability
+      await this.updateTargetSubscription(targetId, targetCapability);
     }
 
     return true;
@@ -166,6 +172,7 @@ class PowerIntegratorDevice extends Homey.Device {
   //   }
   //   this.log('Device destroyed. Connection closed cleanly.');
   // }
+
 }
 
 module.exports = PowerIntegratorDevice;

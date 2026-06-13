@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      padding: 15px; 
+      margin: 0; 
+      color: #333; 
+      background-color: #fff;
+    }
+    .container { 
+      background: #f5f5f7; 
+      border: 1px solid #e5e5ea; 
+      border-radius: 12px; 
+      padding: 20px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    h4 { margin: 0 0 16px 0; color: #111; font-size: 16px; }
+    label { font-weight: 600; display: block; margin-top: 14px; margin-bottom: 6px; font-size: 13px; color: #555; }
+    select { 
+      width: 100%; 
+      padding: 12px; 
+      font-size: 15px; 
+      border: 1px solid #ccc; 
+      border-radius: 8px; 
+      background: #fff; 
+      box-sizing: border-box;
+    }
+    select:disabled { background: #e5e5ea; color: #8e8e93; cursor: not-allowed; }
+    
+    /* Action Buttons styling */
+    .button-bar {
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .btn-done {
+      background-color: #007aff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .btn-done:hover { background-color: #0062cc; }
+    .btn-done:disabled { background-color: #d1d1d6; color: #8e8e93; cursor: not-allowed; }
+    
+    .status-msg {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #34c759;
+      font-weight: 500;
+      display: none;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h4>Automated Reflection Picker</h4>
+    
+    <label for="dev-select">1. Source Device:</label>
+    <select id="dev-select">
+      <option value="">Querying backend bridge...</option>
+    </select>
+
+    <label for="cap-select">2. Capability to Mirror:</label>
+    <select id="cap-select" disabled>
+      <option value="">-- Choose a device first --</option>
+    </select>
+
+    <div class="button-bar">
+      <button id="btn-close" class="btn-done" disabled>Save & Close</button>
+    </div>
+    <div id="status-text" class="status-msg">Configuration saved!</div>
+  </div>
+
+<script type="text/javascript">
+    const devSelect = document.getElementById('dev-select');
+    const capSelect = document.getElementById('cap-select');
+    const btnClose = document.getElementById('btn-close');
+    const statusText = document.getElementById('status-text');
+    let devicesCache = {};
+    let targetIntegratorId = null; // Store who WE are modifying
+
+    function initPicker() {
+      if (typeof window.Homey === 'undefined') {
+        setTimeout(initPicker, 50);
+        return;
+      }
+
+      if (typeof window.Homey.ready === 'function') {
+        window.Homey.ready();
+      }
+
+      // 1. First, find out which exact Integrator object this repair window belongs to
+      window.Homey.emit('get_current_repair_device', {})
+        .then(function(currentRepairDevice) {
+          targetIntegratorId = currentRepairDevice.id;
+          console.log("Configuring target integrator instance ID:", targetIntegratorId);
+          
+          // 2. Now pull the rest of the system ecosystem devices safely
+          return window.Homey.emit('get_system_devices', {});
+        })
+        .then(function(devices) {
+          devicesCache = devices;
+          devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+
+          Object.keys(devices).forEach(id => {
+            const dev = devices[id];
+            const option = document.createElement('option');
+            option.value = dev.id;
+            option.text = dev.name + ` [${dev.zoneName}]`;
+            devSelect.add(option);
+          });
+        })
+        .catch(function(err) {
+          devSelect.innerHTML = `<option>Error retrieving initialization data</option>`;
+          console.error("Repair frame initialization failed:", err);
+        });
+
+      devSelect.addEventListener('change', function() {
+        const selectedId = devSelect.value;
+        const targetDevice = devicesCache[selectedId];
+        
+        capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
+        capSelect.disabled = false;
+        btnClose.disabled = true;
+        statusText.style.display = 'none';
+
+        if (!targetDevice || !targetDevice.capabilities) return;
+
+        targetDevice.capabilities.forEach(cap => {
+          const option = document.createElement('option');
+          option.value = cap.id;
+          option.text = cap.title;
+          capSelect.add(option);
+        });
+      });
+
+      capSelect.addEventListener('change', function() {
+        statusText.style.display = 'none';
+        
+        // Pass our own unique ID alongside the choices so the backend saves to the right place
+        const payload = {
+          target_integrator_id: targetIntegratorId, 
+          reflected_device_id: devSelect.value,
+          reflected_capability_id: capSelect.value
+        };
+
+        window.Homey.emit('save_reflection_settings', payload)
+          .then(function() {
+            console.log('Configuration successfully saved to target instance.');
+            btnClose.disabled = false;
+            statusText.style.display = 'block';
+          })
+          .catch(function(err) {
+            console.error('Settings write-back failed:', err);
+          });
+      });
+
+      btnClose.addEventListener('click', function() {
+        if (typeof window.Homey.done === 'function') {
+          window.Homey.done();
+        }
+      });
+    }
+
+    initPicker();
+</script>
+</body>
+</html>

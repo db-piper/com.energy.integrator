@@ -97,11 +97,11 @@
         "en": "The exact capability key name (e.g., measure_power)."
       },
       "value": "measure_power"
-    },
+    }
+  ],
+  "repair": [
     {
-      "id": "reflection_picker",
-      "type": "custom",
-      "template": "/drivers/power-integrator/settings/configure_reflection.html"
+      "id": "reflection_picker"
     }
   ]
 }

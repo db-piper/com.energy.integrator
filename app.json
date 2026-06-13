@@ -132,6 +132,11 @@
           "value": "measure_power"
         }
       ],
+      "repair": [
+        {
+          "id": "reflection_picker"
+        }
+      ],
       "id": "power-integrator"
     }
   ],
