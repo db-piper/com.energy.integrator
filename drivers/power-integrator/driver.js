@@ -40,39 +40,50 @@ module.exports = class MyDriver extends Homey.Driver {
   }
 
   /**
+   * Main Repair Session Entry Point
+   * @param {PairSocket} session - The active UI frame tunnel
+   * @param {Homey.Device} device - The explicit device instance being repaired
+   */
+  /**
      * Main Repair Session Entry Point
      */
-  onRepair(session) {
+  onRepair(session, currentRepairDevice) {
     this.log('--- Repair Session Tunnel Opened ---');
 
-    // 1. Capture the exact device instance associated with this specific user session click
-    const sessionDevice = session.getDevice();
-    this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
+    // 1. Guard Clause: Ensure the platform cleanly injected the parameter
+    if (!currentRepairDevice) {
+      this.error('--- CRITICAL SDK FAILURE: onRepair executed without providing the device parameter! ---');
+      throw new Error('Repair failed: Device reference was not supplied by the platform.');
+    }
+
+    const targetId = currentRepairDevice.getData().id;
+    this.log(`Repair session context verified via parameter for: ${currentRepairDevice.getName()} [${targetId}]`);
 
     // 2. Expose the identity bridge so the iframe can request its own tracking context
     session.setHandler('get_current_repair_device', async () => {
       return {
-        id: sessionDevice.getData().id
+        id: targetId
       };
     });
 
-    // 3. Keep your existing system landscape registry extractor
+    // 3. System landscape registry extractor (Using your working native getDevices() call)
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
+      // Uses your exact working method
       const devices = this.homey.devices.getDevices();
       const payload = {};
 
       Object.values(devices)
-        .filter(device => device.getDriver().id !== 'power-integrator') // Avoid mirror loop feedback
-        .forEach(device => {
-          const zone = device.getZone();
-          payload[device.id] = {
-            id: device.id,
-            name: device.name,
+        .filter(d => d.getDriver().id !== 'power-integrator') // Renamed to 'd' to stop shadowing conflict
+        .forEach(d => {
+          const zone = d.getZone();
+          payload[d.id] = {
+            id: d.id,
+            name: d.name,
             zoneName: zone ? zone.name : 'No Zone',
-            capabilities: Object.keys(device.capabilities).map(capId => {
-              const capObj = device.homey.managerDrivers.getCapability(capId);
+            capabilities: Object.keys(d.capabilities).map(capId => {
+              const capObj = d.homey.managerDrivers.getCapability(capId);
               return {
                 id: capId,
                 title: (capObj && capObj.title) ? capObj.title : capId
@@ -97,7 +108,7 @@ module.exports = class MyDriver extends Homey.Driver {
         const instances = this.getDevices();
 
         // Match the specific configuration context using the incoming target token
-        const currentDevice = instances.find(d => d.getData().id === payload.target_integrator_id);
+        const currentDevice = instances.find(inst => inst.getData().id === payload.target_integrator_id);
 
         if (!currentDevice) {
           throw new Error(`Could not find active device instance with matching ID: ${payload.target_integrator_id}`);
