@@ -1,89 +1,56 @@
 'use strict';
 
 const Homey = require('homey');
-const { HomeyAPI } = require('homey-api');
 
-module.exports = class MyDriver extends Homey.Driver {
+class PowerIntegratorDriver extends Homey.Driver {
 
-  /**
-   * onInit is called when the driver is initialized.
-   */
   async onInit() {
-
-    this.homeyApi = null;
-
-    try {
-      // Clean, native, package-free system API connection
-      this.homeyApi = await HomeyAPI.createAppAPI({ homey: this.homey });
-      this.log('Global Web API session secured natively by Driver.');
-    } catch (err) {
-      this.error('Driver failed to secure native API instance:', err);
-    }
-
-    this.log('MyDriver has been initialized');
-  }
-
-  /**
-   * onPairListDevices is called when a user is adding a device
-   * and the 'list_devices' view is called.
-   * This should return an array with the data of devices that are available for pairing.
-   */
-  async onPairListDevices() {
-    return [
-      {
-        name: "Power Integrator",
-        data: {
-          id: Date.now().toString(36) // Unique ID for this instance
-        }
-      }
-    ];
+    this.log('PowerIntegratorDriver initializing...');
   }
 
   /**
    * Main Repair Session Entry Point
-   * @param {PairSocket} session - The active UI frame tunnel
-   * @param {Homey.Device} device - The explicit device instance being repaired
+   * Keeping the single-parameter signature from this morning's baseline
    */
-  /**
-     * Main Repair Session Entry Point
-     */
-  onRepair(session, currentRepairDevice) {
+  onRepair(session) {
     this.log('--- Repair Session Tunnel Opened ---');
 
-    // 1. Guard Clause: Ensure the platform cleanly injected the parameter
-    if (!currentRepairDevice) {
-      this.error('--- CRITICAL SDK FAILURE: onRepair executed without providing the device parameter! ---');
-      throw new Error('Repair failed: Device reference was not supplied by the platform.');
+    // THIS MORNING'S FALLBACK: Pulls index 0 to get an active device context
+    const instances = this.getDevices();
+    const sessionDevice = instances[0];
+
+    if (!sessionDevice) {
+      this.error('--- Repair Aborted: No active Power Integrator instances found on disk ---');
+      throw new Error('Please pair a Power Integrator device before running repair.');
     }
 
-    const targetId = currentRepairDevice.getData().id;
-    this.log(`Repair session context verified via parameter for: ${currentRepairDevice.getName()} [${targetId}]`);
+    this.log(`Repair session baseline attached to instance: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
 
-    // 2. Expose the identity bridge so the iframe can request its own tracking context
+    // Identity bridge for the iframe configuration frame
     session.setHandler('get_current_repair_device', async () => {
       return {
-        id: targetId
+        id: sessionDevice.getData().id
       };
     });
 
-    // 3. System landscape registry extractor (Using your working native getDevices() call)
+    // System landscape registry extractor with alphabetization and capability titles
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
-      // Uses your exact working method
+      // Native global accessor that was successfully working this morning
       const devices = this.homey.devices.getDevices();
       const payload = {};
 
       Object.values(devices)
-        .filter(d => d.getDriver().id !== 'power-integrator') // Renamed to 'd' to stop shadowing conflict
-        .forEach(d => {
-          const zone = d.getZone();
-          payload[d.id] = {
-            id: d.id,
-            name: d.name,
+        .filter(device => device.getDriver().id !== 'power-integrator') // Avoid mirror loop feedback
+        .forEach(device => {
+          const zone = device.getZone();
+          payload[device.id] = {
+            id: device.id,
+            name: device.name,
             zoneName: zone ? zone.name : 'No Zone',
-            capabilities: Object.keys(d.capabilities).map(capId => {
-              const capObj = d.homey.managerDrivers.getCapability(capId);
+            capabilities: Object.keys(device.capabilities).map(capId => {
+              const capObj = device.homey.managerDrivers.getCapability(capId);
               return {
                 id: capId,
                 title: (capObj && capObj.title) ? capObj.title : capId
@@ -92,7 +59,7 @@ module.exports = class MyDriver extends Homey.Driver {
           };
         });
 
-      // Simple alphabetized sort by name property
+      // Alphabetized sort by name property
       const sortedPayload = Object.fromEntries(
         Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
       );
@@ -101,14 +68,12 @@ module.exports = class MyDriver extends Homey.Driver {
       return sortedPayload;
     });
 
-    // 4. Handle incoming settings payloads targeted dynamically to the active instance
+    // Handle incoming settings updates targeted to the resolved context instance
     session.setHandler('save_reflection_settings', async (payload) => {
       this.log('--- Received payload to commit to settings: ---', payload);
       try {
-        const instances = this.getDevices();
-
-        // Match the specific configuration context using the incoming target token
-        const currentDevice = instances.find(inst => inst.getData().id === payload.target_integrator_id);
+        // Double-check target mapping
+        const currentDevice = this.getDevices().find(d => d.getData().id === payload.target_integrator_id);
 
         if (!currentDevice) {
           throw new Error(`Could not find active device instance with matching ID: ${payload.target_integrator_id}`);
@@ -116,7 +81,7 @@ module.exports = class MyDriver extends Homey.Driver {
 
         this.log(`--- Targeted device instance verified: ${currentDevice.getName()} ---`);
 
-        // Force variables to storage partition
+        // Write directly to configuration storage partition
         await currentDevice.setSettings({
           reflected_device_id: payload.reflected_device_id,
           reflected_capability_id: payload.reflected_capability_id
@@ -124,14 +89,10 @@ module.exports = class MyDriver extends Homey.Driver {
 
         this.log(`--- Settings successfully committed to storage for: ${currentDevice.getName()} ---`);
 
-        // Awaken the dedicated socket listener directly on this exact instance
+        // Trigger live subscription engine
         if (typeof currentDevice.updateTargetSubscription === 'function') {
           this.log(`--- Invoking subscription sync on ${currentDevice.getName()} directly... ---`);
-          const targetId = payload.reflected_device_id || null;
-          const targetCapability = payload.reflected_capability_id || null;
-          await currentDevice.updateTargetSubscription(targetId, targetCapability);
-        } else {
-          this.error('--- Failure: updateTargetSubscription method was not found on device context! ---');
+          await currentDevice.updateTargetSubscription(payload.reflected_device_id, payload.reflected_capability_id);
         }
 
         return true;
@@ -141,4 +102,6 @@ module.exports = class MyDriver extends Homey.Driver {
       }
     });
   }
-};
+}
+
+module.exports = PowerIntegratorDriver;
