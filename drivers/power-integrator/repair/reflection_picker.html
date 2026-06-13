@@ -30,7 +30,6 @@
     }
     select:disabled { background: #e5e5ea; color: #8e8e93; cursor: not-allowed; }
     
-    /* Action Buttons styling */
     .button-bar {
       margin-top: 24px;
       display: flex;
@@ -87,6 +86,7 @@
     const btnClose = document.getElementById('btn-close');
     const statusText = document.getElementById('status-text');
     let devicesCache = {};
+    let activeIntegratorId = null;
 
     function initPicker() {
       if (typeof window.Homey === 'undefined') {
@@ -94,13 +94,18 @@
         return;
       }
 
-      // Tell Homey the custom view frame is ready to process layout sizing
       if (typeof window.Homey.ready === 'function') {
         window.Homey.ready();
       }
 
-      // Pull alphabetized devices from the backend driver handler
-      window.Homey.emit('get_system_devices', {})
+      // 1. Resolve identity token context from the backend
+      window.Homey.emit('get_current_repair_device', {})
+        .then(function(identity) {
+          activeIntegratorId = identity.id;
+          
+          // 2. Fetch the newly structured system landscape
+          return window.Homey.emit('get_system_devices', {});
+        })
         .then(function(devices) {
           devicesCache = devices;
           devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
@@ -125,7 +130,7 @@
         
         capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
         capSelect.disabled = false;
-        btnClose.disabled = true; // Lock button until metric is verified
+        btnClose.disabled = true; 
         statusText.style.display = 'none';
 
         if (!targetDevice || !targetDevice.capabilities) return;
@@ -133,7 +138,7 @@
         targetDevice.capabilities.forEach(cap => {
           const option = document.createElement('option');
           option.value = cap.id;
-          option.text = cap.title;
+          option.text = cap.title; // Now correctly parses because cap is an object!
           capSelect.add(option);
         });
       });
@@ -143,6 +148,7 @@
         statusText.style.display = 'none';
         
         const payload = {
+          target_integrator_id: activeIntegratorId,
           reflected_device_id: devSelect.value,
           reflected_capability_id: capSelect.value
         };
@@ -150,15 +156,14 @@
         window.Homey.emit('save_reflection_settings', payload)
           .then(function() {
             console.log('Configuration successfully saved.');
-            btnClose.disabled = false; // Enable explicit exit
-            statusText.style.display = 'block'; // Visual feedback toast
+            btnClose.disabled = false; 
+            statusText.style.display = 'block'; 
           })
           .catch(function(err) {
             console.error('Settings write-back failed:', err);
           });
       });
 
-      // Handle deliberate modal teardown via internal button loop
       btnClose.addEventListener('click', function() {
         if (typeof window.Homey.done === 'function') {
           window.Homey.done();

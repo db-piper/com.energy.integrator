@@ -40,23 +40,21 @@ module.exports = class MyDriver extends Homey.Driver {
   }
 
   /**
-   * Main Repair Session Entry Point
-   */
+     * Main Repair Session Entry Point
+     * Fully utilizing the official (session, sessionDevice) SDK signature
+     */
   onRepair(session, sessionDevice) {
     this.log('--- Repair Session Tunnel Opened ---');
-
-    // 1. Capture the exact device instance associated with this specific user session click
-    // const sessionDevice = session.getDevice();
     this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
 
-    // 2. Expose the identity bridge so the iframe can request its own tracking context
+    // 1. Expose the identity bridge so the iframe can request its own tracking context
     session.setHandler('get_current_repair_device', async () => {
       return {
         id: sessionDevice.getData().id
       };
     });
 
-    // 3. Keep your existing system landscape registry extractor
+    // 2. Real-time system landscape registry extractor
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
@@ -65,28 +63,38 @@ module.exports = class MyDriver extends Homey.Driver {
           throw new Error('Web API client instance was not ready on Driver context.');
         }
 
-        // 1. Correctly await the Web API map fetch
-        const devicesMap = await this.homeyApi.devices.getDevices();
+        // Fetch devices and zones concurrently on-demand
+        const [devicesMap, zonesMap] = await Promise.all([
+          this.homeyApi.devices.getDevices(),
+          this.homeyApi.zones.getZones()
+        ]);
+
         this.log(`setHandler:get_system_devices: devicesMap count: ${Object.values(devicesMap).length}`);
+        this.log(`setHandler:get_system_devices: zonesMap count: ${Object.values(zonesMap).length}`);
+
         const payload = {};
 
         Object.values(devicesMap)
-          .filter(device => device.driverId !== 'power-integrator') // Web API uses driverId string natively
+          .filter(device => device.driverId !== 'power-integrator') // Avoid loop feedback
           .forEach(device => {
-            // 2. Web API objects include zoneName directly as a flat string property!
-            const zoneName = device.zoneName || 'No Zone';
+
+            // Resolve zone name dynamically from zonesMap to bypass device.zoneName deprecations
+            const zoneObj = zonesMap[device.zone];
+            const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
+
+            // Convert capabilities map to an array of objects { id, title } for the HTML template
+            const capabilitiesArray = Object.keys(device.capabilities || {}).map(capId => {
+              return {
+                id: capId,
+                title: device.capabilities[capId].title || capId
+              };
+            });
 
             payload[device.id] = {
               id: device.id,
               name: device.name,
-              zoneName: zoneName,
-              // 3. Web API pre-populates titles directly on the capability sub-objects
-              capabilities: Object.keys(device.capabilities || {}).map(capId => {
-                return {
-                  id: capId,
-                  title: device.capabilities[capId].title || capId
-                };
-              })
+              zoneName: cleanZoneName,
+              capabilities: capabilitiesArray
             };
           });
 
@@ -103,35 +111,25 @@ module.exports = class MyDriver extends Homey.Driver {
         throw new Error(err.message || err.toString());
       }
     });
-    // 4. Handle incoming settings payloads targeted dynamically to the active instance
+
+    // 3. Handle incoming settings payloads targeted dynamically to the active instance
     session.setHandler('save_reflection_settings', async (payload) => {
       this.log('--- Received payload to commit to settings: ---', payload);
       try {
-        const instances = this.getDevices();
-
-        // Match the specific configuration context using the incoming target token
-        const currentDevice = instances.find(d => d.getData().id === payload.target_integrator_id);
-
-        if (!currentDevice) {
-          throw new Error(`Could not find active device instance with matching ID: ${payload.target_integrator_id}`);
-        }
-
-        this.log(`--- Targeted device instance verified: ${currentDevice.getName()} ---`);
-
-        // Force variables to storage partition
-        await currentDevice.setSettings({
+        // Commit changes straight to the active device instance context passed by the SDK
+        await sessionDevice.setSettings({
           reflected_device_id: payload.reflected_device_id,
           reflected_capability_id: payload.reflected_capability_id
         });
 
-        this.log(`--- Settings successfully committed to storage for: ${currentDevice.getName()} ---`);
+        this.log(`--- Settings successfully committed to storage for: ${sessionDevice.getName()} ---`);
 
-        // Awaken the dedicated socket listener directly on this exact instance
-        if (typeof currentDevice.updateTargetSubscription === 'function') {
-          this.log(`--- Invoking subscription sync on ${currentDevice.getName()} directly... ---`);
+        // Trigger dynamic listener sync if it exists on your device codebase
+        if (typeof sessionDevice.updateTargetSubscription === 'function') {
+          this.log(`--- Invoking subscription sync on ${sessionDevice.getName()} directly... ---`);
           const targetId = payload.reflected_device_id || null;
           const targetCapability = payload.reflected_capability_id || null;
-          await currentDevice.updateTargetSubscription(targetId, targetCapability);
+          await sessionDevice.updateTargetSubscription(targetId, targetCapability);
         } else {
           this.error('--- Failure: updateTargetSubscription method was not found on device context! ---');
         }
