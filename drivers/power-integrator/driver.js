@@ -1,11 +1,26 @@
 'use strict';
 
 const Homey = require('homey');
+const { HomeyAPI } = require('homey-api');
 
-class PowerIntegratorDriver extends Homey.Driver {
+module.exports = class MyDriver extends Homey.Driver {
 
+  /**
+   * onInit is called when the driver is initialized.
+   */
   async onInit() {
-    this.log('PowerIntegratorDriver initializing...');
+
+    this.homeyApi = null;
+
+    try {
+      // Clean, native, package-free system API connection
+      this.homeyApi = await HomeyAPI.createAppAPI({ homey: this.homey });
+      this.log('Global Web API session secured natively by Driver.');
+    } catch (err) {
+      this.error('Driver failed to secure native API instance:', err);
+    }
+
+    this.log('MyDriver has been initialized');
   }
 
   /**
@@ -24,37 +39,27 @@ class PowerIntegratorDriver extends Homey.Driver {
     ];
   }
 
-
   /**
-   * Main Repair Session Entry Point
-   * Keeping the single-parameter signature from this morning's baseline
-   */
+     * Main Repair Session Entry Point
+     */
   onRepair(session) {
     this.log('--- Repair Session Tunnel Opened ---');
 
-    // THIS MORNING'S FALLBACK: Pulls index 0 to get an active device context
-    const instances = this.getDevices();
-    const sessionDevice = instances[0];
+    // 1. Capture the exact device instance associated with this specific user session click
+    const sessionDevice = session.getDevice();
+    this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
 
-    if (!sessionDevice) {
-      this.error('--- Repair Aborted: No active Power Integrator instances found on disk ---');
-      throw new Error('Please pair a Power Integrator device before running repair.');
-    }
-
-    this.log(`Repair session baseline attached to instance: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
-
-    // Identity bridge for the iframe configuration frame
+    // 2. Expose the identity bridge so the iframe can request its own tracking context
     session.setHandler('get_current_repair_device', async () => {
       return {
         id: sessionDevice.getData().id
       };
     });
 
-    // System landscape registry extractor with alphabetization and capability titles
+    // 3. Keep your existing system landscape registry extractor
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
-      // Native global accessor that was successfully working this morning
       const devices = this.homey.devices.getDevices();
       const payload = {};
 
@@ -76,7 +81,7 @@ class PowerIntegratorDriver extends Homey.Driver {
           };
         });
 
-      // Alphabetized sort by name property
+      // Simple alphabetized sort by name property
       const sortedPayload = Object.fromEntries(
         Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
       );
@@ -85,12 +90,14 @@ class PowerIntegratorDriver extends Homey.Driver {
       return sortedPayload;
     });
 
-    // Handle incoming settings updates targeted to the resolved context instance
+    // 4. Handle incoming settings payloads targeted dynamically to the active instance
     session.setHandler('save_reflection_settings', async (payload) => {
       this.log('--- Received payload to commit to settings: ---', payload);
       try {
-        // Double-check target mapping
-        const currentDevice = this.getDevices().find(d => d.getData().id === payload.target_integrator_id);
+        const instances = this.getDevices();
+
+        // Match the specific configuration context using the incoming target token
+        const currentDevice = instances.find(d => d.getData().id === payload.target_integrator_id);
 
         if (!currentDevice) {
           throw new Error(`Could not find active device instance with matching ID: ${payload.target_integrator_id}`);
@@ -98,7 +105,7 @@ class PowerIntegratorDriver extends Homey.Driver {
 
         this.log(`--- Targeted device instance verified: ${currentDevice.getName()} ---`);
 
-        // Write directly to configuration storage partition
+        // Force variables to storage partition
         await currentDevice.setSettings({
           reflected_device_id: payload.reflected_device_id,
           reflected_capability_id: payload.reflected_capability_id
@@ -106,10 +113,14 @@ class PowerIntegratorDriver extends Homey.Driver {
 
         this.log(`--- Settings successfully committed to storage for: ${currentDevice.getName()} ---`);
 
-        // Trigger live subscription engine
+        // Awaken the dedicated socket listener directly on this exact instance
         if (typeof currentDevice.updateTargetSubscription === 'function') {
           this.log(`--- Invoking subscription sync on ${currentDevice.getName()} directly... ---`);
-          await currentDevice.updateTargetSubscription(payload.reflected_device_id, payload.reflected_capability_id);
+          const targetId = payload.reflected_device_id || null;
+          const targetCapability = payload.reflected_capability_id || null;
+          await currentDevice.updateTargetSubscription(targetId, targetCapability);
+        } else {
+          this.error('--- Failure: updateTargetSubscription method was not found on device context! ---');
         }
 
         return true;
@@ -119,6 +130,4 @@ class PowerIntegratorDriver extends Homey.Driver {
       }
     });
   }
-}
-
-module.exports = PowerIntegratorDriver;
+};
