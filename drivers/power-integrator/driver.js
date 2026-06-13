@@ -9,6 +9,23 @@ class PowerIntegratorDriver extends Homey.Driver {
   }
 
   /**
+   * onPairListDevices is called when a user is adding a device
+   * and the 'list_devices' view is called.
+   * This should return an array with the data of devices that are available for pairing.
+   */
+  async onPairListDevices() {
+    return [
+      {
+        name: "Power Integrator",
+        data: {
+          id: Date.now().toString(36) // Unique ID for this instance
+        }
+      }
+    ];
+  }
+
+
+  /**
    * Main Repair Session Entry Point
    * Keeping the single-parameter signature from this morning's baseline
    */
