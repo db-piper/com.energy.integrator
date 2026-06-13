@@ -1,83 +1,189 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-      padding: 15px; 
-      margin: 0; 
-      color: #333; 
-      background-color: #fff;
+    body {
+      padding: 0;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      background-color: transparent;
+      /* Support dark mode dynamically via system preference if supported */
+      color: #333;
     }
-    .container { 
-      background: #f5f5f7; 
-      border: 1px solid #e5e5ea; 
-      border-radius: 12px; 
-      padding: 20px; 
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        color: #f5f5f5;
+      }
     }
-    h4 { margin: 0 0 16px 0; color: #111; font-size: 16px; }
-    label { font-weight: 600; display: block; margin-top: 14px; margin-bottom: 6px; font-size: 13px; color: #555; }
-    select { 
-      width: 100%; 
-      padding: 12px; 
-      font-size: 15px; 
-      border: 1px solid #ccc; 
-      border-radius: 8px; 
-      background: #fff; 
-      box-sizing: border-box;
-    }
-    select:disabled { background: #e5e5ea; color: #8e8e93; cursor: not-allowed; }
-    
-    .button-bar {
-      margin-top: 24px;
+
+    /* Container Wrapper constraints */
+    .picker-wrapper {
+      padding: 24px;
       display: flex;
-      justify-content: flex-end;
+      flex-direction: column;
+      gap: 20px;
+      /* Uniform vertical spacing between major sections */
     }
-    .btn-done {
-      background-color: #007aff;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      font-size: 15px;
+
+    /* Native Homey typography emulations */
+    .homey-title {
+      font-size: 22px;
       font-weight: 600;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.2s ease;
+      margin: 0 0 4px 0;
     }
-    .btn-done:hover { background-color: #0062cc; }
-    .btn-done:disabled { background-color: #d1d1d6; color: #8e8e93; cursor: not-allowed; }
-    
-    .status-msg {
-      margin-top: 10px;
+
+    .homey-subtitle {
+      font-size: 15px;
+      color: #666;
+      margin: 8px 0 8px 0;
+      line-height: 1.4;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .homey-subtitle {
+        color: #aaa;
+      }
+    }
+
+    /* Form Groups: Forces vertical stacking for form segments */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      /* Ensures inputs stretch to full width */
+      gap: 8px;
+      /* Clean, tight space between label and input */
+      width: 100%;
+    }
+
+    /* Labels: Forces block display behavior */
+    .homey-label {
+      display: block;
+      /* Guarantees the dropdown drops to a new line */
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #666 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px;
+      margin: 0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .homey-label {
+        color: #bbb;
+      }
+    }
+
+    /* Dropdown Inputs: Uniform sizing */
+    .homey-select {
+      display: block;
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      font-size: 14px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      outline: none;
+      box-sizing: border-box;
+      /* Includes padding in width calculation */
+    }
+
+    .homey-select:disabled {
+      background-color: #f0f0f0;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .homey-select {
+        background-color: #252525;
+        border-color: #444;
+        color: #fff;
+      }
+
+      .homey-select:disabled {
+        background-color: #1a1a1a;
+        color: #555;
+      }
+    }
+
+    .action-bar {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    /* Native Homey primary action button emulation */
+    .homey-button-primary {
+      height: 40px;
+      padding: 0 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background-color: #007aff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .homey-button-primary:hover:not(:disabled) {
+      background-color: #0063cc;
+    }
+
+    .homey-button-primary:disabled {
+      background-color: #cccccc;
+      color: #888;
+      cursor: not-allowed;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .homey-button-primary:disabled {
+        background-color: #444;
+        color: #777;
+      }
+    }
+
+    .status-toast {
       font-size: 12px;
-      color: #34c759;
+      color: #2ea44f;
       font-weight: 500;
       display: none;
-      text-align: right;
     }
   </style>
 </head>
+
 <body>
 
-  <div class="container">
-    <h4>Automated Reflection Picker</h4>
-    
-    <label for="dev-select">1. Source Device:</label>
-    <select id="dev-select">
-      <option value="">Querying backend bridge...</option>
-    </select>
+  <div class="picker-wrapper">
+    <h1 class="homey-title">Device and Capability Chooser</h1>
+    <p class="homey-subtitle">Choose a <b>Device</b> and <b>Capability</b> to be the <b>Power Source</b> for this Integrator.</p>
 
-    <label for="cap-select">2. Capability to Mirror:</label>
-    <select id="cap-select" disabled>
-      <option value="">-- Choose a device first --</option>
-    </select>
-
-    <div class="button-bar">
-      <button id="btn-close" class="btn-done" disabled>Save & Close</button>
+    <div class="form-group">
+      <label class="homey-label" for="dev-select">1. Source Device</label>
+      <select id="dev-select" class="homey-select">
+        <option value="">Querying available devices...</option>
+      </select>
     </div>
-    <div id="status-text" class="status-msg">Configuration saved!</div>
+
+    <div class="form-group">
+      <label class="homey-label" for="cap-select">2. Source Capability</label>
+      <select id="cap-select" class="homey-select" disabled>
+        <option value="">-- Choose a device first --</option>
+      </select>
+    </div>
+
+    <div class="action-bar">
+      <button id="btn-close" class="homey-button-primary" disabled>Save & Close</button>
+      <div id="status-text" class="status-toast">Configuration committed successfully!</div>
+    </div>
   </div>
 
   <script type="text/javascript">
@@ -89,6 +195,7 @@
     let activeIntegratorId = null;
 
     function initPicker() {
+      // Revert back to the reliable polling safety check for the implicit window context
       if (typeof window.Homey === 'undefined') {
         setTimeout(initPicker, 50);
         return;
@@ -98,15 +205,13 @@
         window.Homey.ready();
       }
 
-      // 1. Resolve identity token context from the backend
+      // Revert completely back to using the working .emit channel!
       window.Homey.emit('get_current_repair_device', {})
-        .then(function(identity) {
+        .then(function (identity) {
           activeIntegratorId = identity.id;
-          
-          // 2. Fetch the newly structured system landscape
           return window.Homey.emit('get_system_devices', {});
         })
-        .then(function(devices) {
+        .then(function (devices) {
           devicesCache = devices;
           devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
 
@@ -118,19 +223,18 @@
             devSelect.add(option);
           });
         })
-        .catch(function(err) {
+        .catch(function (err) {
           devSelect.innerHTML = `<option>Error retrieving devices</option>`;
           console.error("Data bridge request failed:", err);
         });
 
-      // Handle source device selection changes
-      devSelect.addEventListener('change', function() {
+      devSelect.addEventListener('change', function () {
         const selectedId = devSelect.value;
         const targetDevice = devicesCache[selectedId];
-        
-        capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
+
+        capSelect.innerHTML = '<option value="" selected disabled>-- Select Capability --</option>';
         capSelect.disabled = false;
-        btnClose.disabled = true; 
+        btnClose.disabled = true;
         statusText.style.display = 'none';
 
         if (!targetDevice || !targetDevice.capabilities) return;
@@ -138,15 +242,14 @@
         targetDevice.capabilities.forEach(cap => {
           const option = document.createElement('option');
           option.value = cap.id;
-          option.text = cap.title; // Now correctly parses because cap is an object!
+          option.text = cap.title;
           capSelect.add(option);
         });
       });
 
-      // Commit choices automatically when option shifts
-      capSelect.addEventListener('change', function() {
+      capSelect.addEventListener('change', function () {
         statusText.style.display = 'none';
-        
+
         const payload = {
           target_integrator_id: activeIntegratorId,
           reflected_device_id: devSelect.value,
@@ -154,17 +257,17 @@
         };
 
         window.Homey.emit('save_reflection_settings', payload)
-          .then(function() {
+          .then(function () {
             console.log('Configuration successfully saved.');
-            btnClose.disabled = false; 
-            statusText.style.display = 'block'; 
+            btnClose.disabled = false;
+            statusText.style.display = 'block';
           })
-          .catch(function(err) {
+          .catch(function (err) {
             console.error('Settings write-back failed:', err);
           });
       });
 
-      btnClose.addEventListener('click', function() {
+      btnClose.addEventListener('click', function () {
         if (typeof window.Homey.done === 'function') {
           window.Homey.done();
         }
@@ -175,4 +278,5 @@
   </script>
 
 </body>
+
 </html>
