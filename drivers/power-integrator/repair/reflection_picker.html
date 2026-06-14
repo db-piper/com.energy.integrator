@@ -187,15 +187,13 @@
   </div>
 
   <script type="text/javascript">
+// 1. The DOM elements are the only true global constants
     const devSelect = document.getElementById('dev-select');
     const capSelect = document.getElementById('cap-select');
     const btnClose = document.getElementById('btn-close');
     const statusText = document.getElementById('status-text');
-    let devicesCache = {};
-    let activeIntegratorId = null;
 
     function initPicker() {
-      // Revert back to the reliable polling safety check for the implicit window context
       if (typeof window.Homey === 'undefined') {
         setTimeout(initPicker, 50);
         return;
@@ -205,37 +203,78 @@
         window.Homey.ready();
       }
 
-      // Revert completely back to using the working .emit channel!
-      window.Homey.emit('get_current_repair_device', {})
-        .then(function (identity) {
-          activeIntegratorId = identity.id;
-          return window.Homey.emit('get_system_devices', {});
-        })
-        .then(function (devices) {
-          devicesCache = devices;
-          devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+      // 2. Lock the data arrays concurrently
+      Promise.all([
+        window.Homey.emit('get_current_repair_device', {}),
+        window.Homey.emit('get_system_devices', {})
+      ])
+      .then(function(results) {
+        const identity = results[0];
+        const devicesCache = results[1]; // Scoped safely inside the promise chain
 
-          Object.keys(devices).forEach(id => {
-            const dev = devices[id];
-            const option = document.createElement('option');
-            option.value = dev.id;
-            option.text = dev.name + ` [${dev.zoneName}]`;
-            devSelect.add(option);
-          });
-        })
-        .catch(function (err) {
-          devSelect.innerHTML = `<option>Error retrieving devices</option>`;
-          console.error("Data bridge request failed:", err);
+        // All structural variables are now strict constants
+        const activeIntegratorId = identity.id;
+        const savedDeviceId = identity.reflected_device_id;
+        const savedCapId = identity.reflected_capability_id;
+
+        // 3. Populate Device Dropdown
+        devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+        Object.keys(devicesCache).forEach(id => {
+          const dev = devicesCache[id];
+          const option = document.createElement('option');
+          option.value = dev.id;
+          option.text = dev.name + ` [${dev.zoneName}]`;
+          
+          if (savedDeviceId && dev.id === savedDeviceId) {
+            option.selected = true;
+          }
+          devSelect.add(option);
         });
 
-      devSelect.addEventListener('change', function () {
-        const selectedId = devSelect.value;
-        const targetDevice = devicesCache[selectedId];
+        // 4. Cascade Trigger if valid config exists
+        if (savedDeviceId && devicesCache[savedDeviceId]) {
+          populateCapabilities(devicesCache, savedDeviceId, savedCapId);
+          btnClose.disabled = false;
+        }
 
-        capSelect.innerHTML = '<option value="" selected disabled>-- Select Capability --</option>';
+        // 5. Setup Interactive Event Observers locally to preserve const closures
+        devSelect.addEventListener('change', function() {
+          statusText.style.display = 'none';
+          btnClose.disabled = true;
+          populateCapabilities(devicesCache, devSelect.value);
+        });
+
+        capSelect.addEventListener('change', function() {
+          statusText.style.display = 'none';
+          
+          const payload = {
+            target_integrator_id: activeIntegratorId, // Safely locked via closure
+            reflected_device_id: devSelect.value,
+            reflected_capability_id: capSelect.value
+          };
+
+          window.Homey.emit('save_reflection_settings', payload)
+            .then(function() {
+              console.log('Configuration successfully saved.');
+              btnClose.disabled = false; 
+              statusText.style.display = 'block'; 
+            })
+            .catch(function(err) {
+              console.error('Settings write-back failed:', err);
+            });
+        });
+      })
+      .catch(function(err) {
+        devSelect.innerHTML = `<option>Error initializing configuration</option>`;
+        console.error("Data bridge initialization failed:", err);
+      });
+
+      // Abstracted Helper: Expects cache array passed explicitly
+      function populateCapabilities(cache, deviceId, selectedCapId = null) {
+        const targetDevice = cache[deviceId];
+        
+        capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
         capSelect.disabled = false;
-        btnClose.disabled = true;
-        statusText.style.display = 'none';
 
         if (!targetDevice || !targetDevice.capabilities) return;
 
@@ -243,31 +282,15 @@
           const option = document.createElement('option');
           option.value = cap.id;
           option.text = cap.title;
+          
+          if (selectedCapId && cap.id === selectedCapId) {
+            option.selected = true;
+          }
           capSelect.add(option);
         });
-      });
+      }
 
-      capSelect.addEventListener('change', function () {
-        statusText.style.display = 'none';
-
-        const payload = {
-          target_integrator_id: activeIntegratorId,
-          reflected_device_id: devSelect.value,
-          reflected_capability_id: capSelect.value
-        };
-
-        window.Homey.emit('save_reflection_settings', payload)
-          .then(function () {
-            console.log('Configuration successfully saved.');
-            btnClose.disabled = false;
-            statusText.style.display = 'block';
-          })
-          .catch(function (err) {
-            console.error('Settings write-back failed:', err);
-          });
-      });
-
-      btnClose.addEventListener('click', function () {
+      btnClose.addEventListener('click', function() {
         if (typeof window.Homey.done === 'function') {
           window.Homey.done();
         }
