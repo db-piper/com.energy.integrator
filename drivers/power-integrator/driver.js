@@ -47,13 +47,15 @@ module.exports = class MyDriver extends Homey.Driver {
     this.log('--- Repair Session Tunnel Opened ---');
     this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
 
-    // 1. Expose the identity bridge so the iframe can request its own tracking context
+    // 1. Expose the identity bridge with existing configuration attributes
     session.setHandler('get_current_repair_device', async () => {
+      const currentSettings = sessionDevice.getSettings();
       return {
-        id: sessionDevice.getData().id
+        id: sessionDevice.getData().id,
+        reflected_device_id: currentSettings.reflected_device_id || null,
+        reflected_capability_id: currentSettings.reflected_capability_id || null
       };
     });
-
     // 2. Real-time system landscape registry extractor
     session.setHandler('get_system_devices', async (data) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
