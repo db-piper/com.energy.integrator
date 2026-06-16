@@ -62,6 +62,9 @@ module.exports = class MyDriver extends Homey.Driver {
 
       // Default to strict mode if the frontend doesn't explicitly declare it
       const isStrict = query && query.strict;
+      const currentDevId = query && query.currentDeviceId;
+      const currentCapId = query && query.currentCapabilityId;
+      
       try {
         if (!this.homeyApi) {
           throw new Error('Web API client instance was not ready on Driver context.');
@@ -84,19 +87,21 @@ module.exports = class MyDriver extends Homey.Driver {
             // Resolve zone name dynamically from zonesMap
             const zoneObj = zonesMap[device.zone];
             const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
-
             const targetCapabilities = device.capabilitiesObj || {};
 
             // UPGRADE 1(b): Extract and Filter capabilities on the backend
             const capabilitiesArray = Object.keys(targetCapabilities)
               .filter(capId => {
+                const isCurrent = device.id === currentDevId && capId === currentCapId;
+
+                let include = false;
                 if (isStrict) {
-                  // Strict mode: Only power and power sub-capabilities
-                  return capId === 'measure_power' || capId.startsWith('measure_power.');
+                  include = capId === 'measure_power' || capId.startsWith('measure_power.');
                 } else {
-                  // Relaxed mode: Any standard measure capability (voltage, current, etc.)
-                  return capId.startsWith('measure');
+                  include = capId.startsWith('measure');
                 }
+
+                return isCurrent || include;
               })
               .map(capId => {
                 const capMetadata = targetCapabilities[capId];

@@ -215,24 +215,33 @@
       function loadSystemLandscape(savedDeviceId = null, savedCapId = null) {
         const strictModeActive = filterToggle.checked;
 
-        Promise.all([
-          window.Homey.emit('get_current_repair_device', {}),
-          window.Homey.emit('get_system_devices', { strict: strictModeActive })
-        ])
+        // Sequence Step 1: Always grab the current repair device settings first
+        window.Homey.emit('get_current_repair_device', {})
+          .then(function (identity) {
+
+            // Sequence Step 2: Now we can safely calculate our current IDs
+            const currentDeviceId = savedDeviceId || identity.reflected_device_id;
+            const currentCapId = savedCapId || identity.reflected_capability_id;
+
+            // Sequence Step 3: Pass those active IDs straight to the registry fetch
+            return window.Homey.emit('get_system_devices', {
+              strict: strictModeActive,
+              currentDeviceId: currentDeviceId,
+              currentCapabilityId: currentCapId
+            })
+              .then(function (devicesCache) {
+                // Package both results together so your existing UI rendering block works unchanged
+                return [identity, devicesCache];
+              });
+          })
           .then(function (results) {
             const identity = results[0];
             const devicesCache = results[1];
-
             const activeIntegratorId = identity.id;
 
-            // Explicitly fallback if the passed values are empty or null
-            const currentDeviceId = (savedDeviceId !== null && savedDeviceId !== "")
-              ? savedDeviceId
-              : identity.reflected_device_id;
-
-            const currentCapId = (savedCapId !== null && savedCapId !== "")
-              ? savedCapId
-              : identity.reflected_capability_id;
+            // Re-calculate local references for the UI population logic block
+            const currentDeviceId = savedDeviceId || identity.reflected_device_id;
+            const currentCapId = savedCapId || identity.reflected_capability_id;
 
             // 3. Populate Device Dropdown
             devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
