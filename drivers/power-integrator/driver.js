@@ -57,8 +57,11 @@ module.exports = class MyDriver extends Homey.Driver {
       };
     });
     // 2. Real-time system landscape registry extractor
-    session.setHandler('get_system_devices', async (data) => {
+    session.setHandler('get_system_devices', async (query) => {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
+
+      // Default to strict mode if the frontend doesn't explicitly declare it
+      const isStrict = query && query.strict !== false;
 
       try {
         if (!this.homeyApi) {
@@ -71,38 +74,48 @@ module.exports = class MyDriver extends Homey.Driver {
           this.homeyApi.zones.getZones()
         ]);
 
-        this.log(`setHandler:get_system_devices: devicesMap count: ${Object.values(devicesMap).length}`);
-        this.log(`setHandler:get_system_devices: zonesMap count: ${Object.values(zonesMap).length}`);
-
+        const thisAppId = 'com.energy.integrator';
         const payload = {};
 
         Object.values(devicesMap)
-          .filter(device => device.driverId !== 'power-integrator') // Avoid loop feedback
+          // UPGRADE 1(a): Dynamically filter out any devices owned by this app's drivers
+          .filter(device => device.ownerUri !== `homey:app:${thisAppId}`)
           .forEach(device => {
 
-            // Resolve zone name dynamically from zonesMap to bypass device.zoneName deprecations
+            // Resolve zone name dynamically from zonesMap
             const zoneObj = zonesMap[device.zone];
             const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
 
-            // Extract capabilities natively using the Web API structure
-            // In the Web API, device.capabilitiesObj contains the properties for each capability
             const targetCapabilities = device.capabilitiesObj || {};
 
-            const capabilitiesArray = Object.keys(targetCapabilities).map(capId => {
-              const capMetadata = targetCapabilities[capId];
-              return {
-                id: capId,
-                // Fall back to the raw key ID (like measure_power.load) if title isn't populated
-                title: (capMetadata && capMetadata.title) ? capMetadata.title : capId
-              };
-            });
+            // UPGRADE 1(b): Extract and Filter capabilities on the backend
+            const capabilitiesArray = Object.keys(targetCapabilities)
+              .filter(capId => {
+                if (isStrict) {
+                  // Strict mode: Only power and power sub-capabilities
+                  return capId === 'measure_power' || capId.startsWith('measure_power.');
+                } else {
+                  // Relaxed mode: Any standard measure capability (voltage, current, etc.)
+                  return capId.startsWith('measure_');
+                }
+              })
+              .map(capId => {
+                const capMetadata = targetCapabilities[capId];
+                return {
+                  id: capId,
+                  title: (capMetadata && capMetadata.title) ? capMetadata.title : capId
+                };
+              });
 
-            payload[device.id] = {
-              id: device.id,
-              name: device.name,
-              zoneName: cleanZoneName,
-              capabilities: capabilitiesArray
-            };
+            // Only add the device to the picker drop-down if it has matching capabilities
+            if (capabilitiesArray.length > 0) {
+              payload[device.id] = {
+                id: device.id,
+                name: device.name,
+                zoneName: cleanZoneName,
+                capabilities: capabilitiesArray
+              };
+            }
           });
 
         // Simple alphabetized sort by name property
@@ -110,7 +123,7 @@ module.exports = class MyDriver extends Homey.Driver {
           Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
         );
 
-        this.log(`[Driver:power-integrator] --- Returning ${Object.keys(sortedPayload).length} alphabetized devices ---`);
+        this.log(`[Driver:power-integrator] --- Returning ${Object.keys(sortedPayload).length} filtered, alphabetized devices ---`);
         return sortedPayload;
 
       } catch (err) {
