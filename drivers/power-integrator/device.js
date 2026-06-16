@@ -6,6 +6,7 @@ class PowerIntegratorDevice extends Homey.Device {
 
   async onInit() {
     this.log(`Device [${this.getName()}] initializing...`);
+    await this.driver.ready();
 
     this.homeyApi = null;
     this.targetDeviceInstance = null;
@@ -26,7 +27,7 @@ class PowerIntegratorDevice extends Homey.Device {
    * Secure a local Web API session for this specific device instance
    */
   async initLocalWebApi() {
-    this.homeyApi = this.driver.homeyApi;
+    this.homeyApi = await this.driver.homeyApi();
 
     if (!this.homeyApi) {
       this.error('Failed to inject API: Parent driver session is not ready!');

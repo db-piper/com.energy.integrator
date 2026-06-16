@@ -56,7 +56,7 @@
       function syncLandscape() {
         const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
 
-        window.Homey.emit('get_current_repair_device', {})
+        window.Homey.emit('get_current_device', {})
           .then(identity => {
             // Compute absolute truth: prioritize live UI state over backend null defaults
             const targetDevId = savedDeviceId || identity.reflected_device_id;

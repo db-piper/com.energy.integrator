@@ -1,0 +1,171 @@
+'use strict';
+const { HomeyAPI } = require('homey-api');
+
+
+/**
+ * Handles stateless system registry extraction and identity normalization
+ * across any driver pair/repair session.
+ */
+class DiscoveryCoordinator {
+  /**
+   * @param {Object} homey - The native Homey runtime instance (this.homey)
+   * @param {string} appId - The current application ID
+   */
+  constructor(homey, appId = 'com.energy.integrator') {
+    this.homey = homey;
+    this.appId = appId;
+    this._homeyApi = null;
+
+    // Push the asynchronous setup down into an isolated, managed pipeline
+    this._initializePromise = this._initApi();
+  }
+
+  /**
+   * Internal async initializer to secure the Web API session securely
+   */
+  async _initApi() {
+    try {
+      this._homeyApi = await HomeyAPI.createAppAPI({ homey: this.homey });
+      this.homey.app.log('[DiscoveryCoordinator] Global Web API session secured natively.');
+    } catch (err) {
+      this.homey.app.error('[DiscoveryCoordinator] Failed to secure native API instance:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Return a fully initialized homey API
+   * @returns {Object}          Fully initialized homey API
+   */
+  async homeyApi() {
+    await this._initializePromise;
+    return this._homeyApi;
+  }
+
+
+  /**
+   * Normalizes the identity profile response.
+   * Works for Repair (maps existing device) and Pair (falls back to clean null settings safely).
+   * @param {Object|null} sessionDevice - The Homey Device instance (null if pairing)
+   */
+  getCurrentDevice(sessionDevice) {
+    if (!sessionDevice) {
+      return {
+        id: null,
+        reflected_device_id: null,
+        reflected_capability_id: null
+      };
+    }
+
+    const currentSettings = sessionDevice.getSettings();
+    return {
+      id: sessionDevice.getData().id,
+      reflected_device_id: currentSettings.reflected_device_id || null,
+      reflected_capability_id: currentSettings.reflected_capability_id || null
+    };
+  }
+
+  /**
+   * Universal landscape extractor with capability filtering
+   * @param {Object} query - Incoming arguments from frontend
+   */
+  async getSystemDevices(query) {
+    await this._initializePromise;
+
+    const isStrict = query && query.strict;
+    const currentDevId = query && query.currentDeviceId;
+    const currentCapId = query && query.currentCapabilityId;
+
+    if (!this._homeyApi) {
+      throw new Error('Web API client instance was not available on DiscoveryCoordinator.');
+    }
+
+    // Fetch live infrastructure topology maps concurrently
+    const [devicesMap, zonesMap] = await Promise.all([
+      this._homeyApi.devices.getDevices(),
+      this._homeyApi.zones.getZones()
+    ]);
+
+    const payload = {};
+
+    Object.values(devicesMap)
+      // Exclude devices created by this app's drivers to avoid circular reference loops
+      .filter(device => device.ownerUri !== `homey:app:${this.appId}`)
+      .forEach(device => {
+        const zoneObj = zonesMap[device.zone];
+        const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
+        const targetCapabilities = device.capabilitiesObj || {};
+
+        const capabilitiesArray = Object.keys(targetCapabilities)
+          .filter(capId => {
+            // Safeguard evaluation matrix for null or blank pairing bounds
+            const isCurrent = currentDevId && currentCapId && 
+                              device.id === currentDevId && capId === currentCapId;
+
+            let include = false;
+            if (isStrict) {
+              include = capId === 'measure_power' || capId.startsWith('measure_power.');
+            } else {
+              include = capId.startsWith('measure');
+            }
+
+            return isCurrent || include;
+          })
+          .map(capId => {
+            const capMetadata = targetCapabilities[capId];
+            return {
+              id: capId,
+              title: (capMetadata && capMetadata.title) ? capMetadata.title : capId
+            };
+          });
+
+        if (capabilitiesArray.length > 0) {
+          payload[device.id] = {
+            id: device.id,
+            name: device.name,
+            zoneName: cleanZoneName,
+            capabilities: capabilitiesArray
+          };
+        }
+      });
+
+    // Alphabetize output payload by device name
+    return Object.fromEntries(
+      Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
+    );
+  }
+
+  /**
+   * Commits selected device and capability to the active device instance settings
+   * and forces a subscription synchronization loop.
+   * @param {Object} sessionDevice - Active Homey Device context instance
+   * @param {Object} payload - Settings payload sent from the frontend
+   */
+  async saveReflectionSettings(sessionDevice, payload) {
+    if (!sessionDevice) {
+      throw new Error('Cannot commit reflection settings: Missing active device context.');
+    }
+
+    try {
+      // 1. Commit identifiers straight to Homey storage properties
+      await sessionDevice.setSettings({
+        reflected_device_id: payload.reflected_device_id,
+        reflected_capability_id: payload.reflected_capability_id
+      });
+
+      // 2. Trigger dynamic event listener synchronization if implemented on the device
+      if (typeof sessionDevice.updateTargetSubscription === 'function') {
+        await sessionDevice.updateTargetSubscription(
+          payload.reflected_device_id, 
+          payload.reflected_capability_id
+        );
+      }
+      
+      return true;
+    } catch (err) {
+      throw new Error(err.message || err.toString());
+    }
+  }
+}
+
+module.exports = DiscoveryCoordinator;
