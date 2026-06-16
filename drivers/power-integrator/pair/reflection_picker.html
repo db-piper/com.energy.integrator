@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/app/com.energy.integrator/assets/css/app.css">
+</head>
+
+<body>
+
+  <div class="picker-wrapper">
+    <h1 class="homey-title">Device and Capability Chooser</h1>
+    <p class="homey-subtitle">Choose a <b>Device</b> and <b>Capability</b> to be the <b>Power Source</b> for this
+      Integrator.</p>
+
+    <div class="form-group">
+      <label class="homey-label" for="dev-select">1. Source Device</label>
+      <select id="dev-select" class="homey-select">
+        <option value="">Querying available devices...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="homey-label" for="cap-select">2. Source Capability</label>
+      <select id="cap-select" class="homey-select" disabled>
+        <option value="">-- Choose a device first --</option>
+      </select>
+    </div>
+
+    <div class="toggle-group">
+      <input type="checkbox" id="filter-toggle" class="toggle-input">
+      <label for="filter-toggle" class="toggle-label">Show only measure.power
+        capabilities</label>
+    </div>
+
+    <div class="action-bar">
+      <button id="btn-close" class="homey-button-primary" disabled>Save & Close</button>
+      <div id="status-text" class="status-toast">Configuration committed successfully!</div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    // =========================================================================
+    // PART 1: Shared Stateless Bridge Helper
+    // =========================================================================
+    function createHomeyPickerBridge({ onReadLiveSelection, onRender }) {
+      if (typeof window.Homey === 'undefined') {
+        setTimeout(() => createHomeyPickerBridge({ onReadLiveSelection, onRender }), 50);
+        return;
+      }
+
+      if (typeof window.Homey.ready === 'function') {
+        window.Homey.ready();
+      }
+
+      function syncLandscape() {
+        const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
+
+        window.Homey.emit('get_current_repair_device', {})
+          .then(identity => {
+            // Compute absolute truth: prioritize live UI state over backend null defaults
+            const targetDevId = savedDeviceId || identity.reflected_device_id;
+            const targetCapId = savedCapId || identity.reflected_capability_id;
+
+            return window.Homey.emit('get_system_devices', {
+              strict: strictMode,
+              currentDeviceId: targetDevId,
+              currentCapabilityId: targetCapId
+            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId }));
+          })
+          .then(context => {
+            onRender(context);
+          })
+          .catch(err => {
+            console.error("Homey Picker Bridge execution failure:", err);
+          });
+      }
+
+      syncLandscape();
+      return { refresh: syncLandscape };
+    }
+
+    // =========================================================================
+    // PART 2: Local UI Logic Implementation (Direct Instantiation Flow)
+    // =========================================================================
+    const devSelect = document.getElementById('dev-select');
+    const capSelect = document.getElementById('cap-select');
+    const btnClose = document.getElementById('btn-close');
+    const statusText = document.getElementById('status-text');
+    const filterToggle = document.getElementById('filter-toggle');
+
+    const bridge = createHomeyPickerBridge({
+
+      // Tell the bridge what the user has selected on screen right now
+      onReadLiveSelection: () => ({
+        savedDeviceId: devSelect.value || null,
+        savedCapId: capSelect.value || null,
+        strictMode: filterToggle.checked
+      }),
+
+      // Handle raw dropdown element population and dynamic UI states
+      onRender: ({ identity, devicesCache, targetDevId, targetCapId }) => {
+
+        // 1. Populate Device Dropdown
+        devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+        Object.keys(devicesCache).forEach(id => {
+          const dev = devicesCache[id];
+          const option = new Option(dev.name + ` [${dev.zoneName}]`, dev.id);
+          if (targetDevId && dev.id === targetDevId) {
+            option.selected = true;
+          }
+          devSelect.add(option);
+        });
+
+        // 2. Handle Cascading Capabilities Dropdown
+        const targetDevice = devicesCache[targetDevId];
+        if (targetDevId && targetDevice) {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
+          capSelect.disabled = false;
+
+          (targetDevice.capabilities || []).forEach(cap => {
+            const option = new Option(cap.title, cap.id);
+            if (targetCapId && cap.id === targetCapId) {
+              option.selected = true;
+            }
+            capSelect.add(option);
+          });
+          btnClose.disabled = false;
+        } else {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Choose a device first --</option>';
+          capSelect.disabled = true;
+          btnClose.disabled = true;
+        }
+
+        // 3. Simple change listener to redraw cascading dropdown configurations
+        devSelect.onchange = () => {
+          statusText.style.display = 'none';
+          bridge.refresh();
+        };
+
+        // Clear the success/error messages if they toggle capability picks
+        capSelect.onchange = () => {
+          statusText.style.display = 'none';
+        };
+      }
+    });
+
+    // 4. Global static filter checkbox observer
+    filterToggle.addEventListener('change', () => bridge.refresh());
+
+    // 5. Direct Instantiation Trigger via Homey SDKv3 Engine
+    btnClose.addEventListener('click', () => {
+      if (!devSelect.value || !capSelect.value) {
+        return window.Homey.alert('Please pick both a Source Device and Metric before saving.');
+      }
+
+      btnClose.disabled = true;
+      statusText.innerText = "Creating device...";
+      statusText.style.display = 'block';
+
+      // Assemble and provision the device profile directly into Homey core
+      window.Homey.createDevice({
+        name: "Power Integrator",
+        data: {
+          id: Date.now().toString(36) // Unique dynamic tracking token
+        },
+        settings: {
+          reflected_device_id: devSelect.value,
+          reflected_capability_id: capSelect.value
+        }
+      })
+        .then(() => {
+          // Instant instantiation complete. Close the pairing window context.
+          if (typeof window.Homey.done === 'function') {
+            window.Homey.done();
+          }
+        })
+        .catch((err) => {
+          btnClose.disabled = false;
+          statusText.style.display = 'none';
+          window.Homey.alert(`Creation failed: ${err.message || err}`);
+        });
+    });
+  </script>
+</body>
+
+</html>

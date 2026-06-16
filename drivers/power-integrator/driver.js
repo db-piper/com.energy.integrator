@@ -40,9 +40,99 @@ module.exports = class MyDriver extends Homey.Driver {
   }
 
   /**
+   * Streamlined Pair Session Entry Point
+   * Uses frontend instantiation, eliminating the need for list_devices tracking
+   */
+  onPair(session) {
+    this.log('--- Pair Session Tunnel Opened (Direct Creation Flow) ---');
+
+    // 1. Expose Identity Bridge 
+    // Since there is no device yet, return clean, null target properties safely
+    session.setHandler('get_current_repair_device', async () => {
+      this.log('[Driver:Pair] Initializing clean configuration context.');
+      return {
+        id: null,
+        reflected_device_id: null,
+        reflected_capability_id: null
+      };
+    });
+
+    // 2. Real-time System Landscape Registry Extractor
+    // (100% identical to your stable onRepair code)
+    session.setHandler('get_system_devices', async (query) => {
+      this.log('[Driver:Pair] Processing system landscape for picker dropdown...');
+      
+      const isStrict = query && query.strict;
+      const currentDevId = query && query.currentDeviceId;
+      const currentCapId = query && query.currentCapabilityId;
+
+      try {
+        if (!this.homeyApi) {
+          throw new Error('Web API client instance was not ready on Driver context.');
+        }
+
+        const [devicesMap, zonesMap] = await Promise.all([
+          this.homeyApi.devices.getDevices(),
+          this.homeyApi.zones.getZones()
+        ]);
+
+        const thisAppId = 'com.energy.integrator';
+        const payload = {};
+
+        Object.values(devicesMap)
+          .filter(device => device.ownerUri !== `homey:app:${thisAppId}`)
+          .forEach(device => {
+            const zoneObj = zonesMap[device.zone];
+            const cleanZoneName = zoneObj ? zoneObj.name : 'No Zone';
+            const targetCapabilities = device.capabilitiesObj || {};
+
+            const capabilitiesArray = Object.keys(targetCapabilities)
+              .filter(capId => {
+                const isCurrent = currentDevId && currentCapId && 
+                                  device.id === currentDevId && capId === currentCapId;
+
+                let include = false;
+                if (isStrict) {
+                  include = capId === 'measure_power' || capId.startsWith('measure_power.');
+                } else {
+                  include = capId.startsWith('measure');
+                }
+
+                return isCurrent || include;
+              })
+              .map(capId => {
+                const capMetadata = targetCapabilities[capId];
+                return {
+                  id: capId,
+                  title: (capMetadata && capMetadata.title) ? capMetadata.title : capId
+                };
+              });
+
+            if (capabilitiesArray.length > 0) {
+              payload[device.id] = {
+                id: device.id,
+                name: device.name,
+                zoneName: cleanZoneName,
+                capabilities: capabilitiesArray
+              };
+            }
+          });
+
+        return Object.fromEntries(
+          Object.entries(payload).sort(([, a], [, b]) => a.name.localeCompare(b.name))
+        );
+      } catch (err) {
+        this.error('--- System Device Fetch Failed inside Pair Handler ---', err);
+        throw new Error(err.message || err.toString());
+      }
+    });
+
+  }
+
+  /**
      * Main Repair Session Entry Point
      * Fully utilizing the official (session, sessionDevice) SDK signature
-     */
+   */
   onRepair(session, sessionDevice) {
     this.log('--- Repair Session Tunnel Opened ---');
     this.log(`Repair session context resolved for: ${sessionDevice.getName()} [${sessionDevice.getData().id}]`);
