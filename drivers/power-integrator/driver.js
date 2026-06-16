@@ -61,8 +61,7 @@ module.exports = class MyDriver extends Homey.Driver {
       this.log('[Driver:power-integrator] --- Frontend requested device registry. Processing system landscape... ---');
 
       // Default to strict mode if the frontend doesn't explicitly declare it
-      const isStrict = query && query.strict !== false;
-
+      const isStrict = query && query.strict;
       try {
         if (!this.homeyApi) {
           throw new Error('Web API client instance was not ready on Driver context.');
@@ -96,7 +95,7 @@ module.exports = class MyDriver extends Homey.Driver {
                   return capId === 'measure_power' || capId.startsWith('measure_power.');
                 } else {
                   // Relaxed mode: Any standard measure capability (voltage, current, etc.)
-                  return capId.startsWith('measure_');
+                  return capId.startsWith('measure');
                 }
               })
               .map(capId => {

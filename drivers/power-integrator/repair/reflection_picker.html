@@ -164,7 +164,8 @@
 
   <div class="picker-wrapper">
     <h1 class="homey-title">Device and Capability Chooser</h1>
-    <p class="homey-subtitle">Choose a <b>Device</b> and <b>Capability</b> to be the <b>Power Source</b> for this Integrator.</p>
+    <p class="homey-subtitle">Choose a <b>Device</b> and <b>Capability</b> to be the <b>Power Source</b> for this
+      Integrator.</p>
 
     <div class="form-group">
       <label class="homey-label" for="dev-select">1. Source Device</label>
@@ -182,7 +183,8 @@
 
     <div style="display: flex; align-items: center; gap: 8px; margin: -4px 0 4px 0;">
       <input type="checkbox" id="filter-toggle" style="width: 16px; height: 16px; cursor: pointer;">
-      <label for="filter-toggle" style="cursor: pointer; font-size: 13px; user-select: none;">Show only measure.power capabilities</label>
+      <label for="filter-toggle" style="cursor: pointer; font-size: 13px; user-select: none;">Show only measure.power
+        capabilities</label>
     </div>
 
     <div class="action-bar">
@@ -192,11 +194,12 @@
   </div>
 
   <script type="text/javascript">
-// 1. The DOM elements are the only true global constants
+    // 1. The DOM elements are the only true global constants
     const devSelect = document.getElementById('dev-select');
     const capSelect = document.getElementById('cap-select');
     const btnClose = document.getElementById('btn-close');
     const statusText = document.getElementById('status-text');
+    const filterToggle = document.getElementById('filter-toggle'); // Cached element
 
     function initPicker() {
       if (typeof window.Homey === 'undefined') {
@@ -208,76 +211,100 @@
         window.Homey.ready();
       }
 
-      // 2. Lock the data arrays concurrently
-      Promise.all([
-        window.Homey.emit('get_current_repair_device', {}),
-        window.Homey.emit('get_system_devices', {})
-      ])
-      .then(function(results) {
-        const identity = results[0];
-        const devicesCache = results[1]; // Scoped safely inside the promise chain
+      // 2. Define the re-runnable landscape loading function
+      function loadSystemLandscape(savedDeviceId = null, savedCapId = null) {
+        const strictModeActive = filterToggle.checked;
 
-        // All structural variables are now strict constants
-        const activeIntegratorId = identity.id;
-        const savedDeviceId = identity.reflected_device_id;
-        const savedCapId = identity.reflected_capability_id;
+        Promise.all([
+          window.Homey.emit('get_current_repair_device', {}),
+          window.Homey.emit('get_system_devices', { strict: strictModeActive })
+        ])
+          .then(function (results) {
+            const identity = results[0];
+            const devicesCache = results[1];
 
-        // 3. Populate Device Dropdown
-        devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
-        Object.keys(devicesCache).forEach(id => {
-          const dev = devicesCache[id];
-          const option = document.createElement('option');
-          option.value = dev.id;
-          option.text = dev.name + ` [${dev.zoneName}]`;
-          
-          if (savedDeviceId && dev.id === savedDeviceId) {
-            option.selected = true;
-          }
-          devSelect.add(option);
-        });
+            const activeIntegratorId = identity.id;
 
-        // 4. Cascade Trigger if valid config exists
-        if (savedDeviceId && devicesCache[savedDeviceId]) {
-          populateCapabilities(devicesCache, savedDeviceId, savedCapId);
-          btnClose.disabled = false;
-        }
+            // Explicitly fallback if the passed values are empty or null
+            const currentDeviceId = (savedDeviceId !== null && savedDeviceId !== "")
+              ? savedDeviceId
+              : identity.reflected_device_id;
 
-        // 5. Setup Interactive Event Observers locally to preserve const closures
-        devSelect.addEventListener('change', function() {
-          statusText.style.display = 'none';
-          btnClose.disabled = true;
-          populateCapabilities(devicesCache, devSelect.value);
-        });
+            const currentCapId = (savedCapId !== null && savedCapId !== "")
+              ? savedCapId
+              : identity.reflected_capability_id;
 
-        capSelect.addEventListener('change', function() {
-          statusText.style.display = 'none';
-          
-          const payload = {
-            target_integrator_id: activeIntegratorId, // Safely locked via closure
-            reflected_device_id: devSelect.value,
-            reflected_capability_id: capSelect.value
-          };
+            // 3. Populate Device Dropdown
+            devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+            Object.keys(devicesCache).forEach(id => {
+              const dev = devicesCache[id];
+              const option = document.createElement('option');
+              option.value = dev.id;
+              option.text = dev.name + ` [${dev.zoneName}]`;
 
-          window.Homey.emit('save_reflection_settings', payload)
-            .then(function() {
-              console.log('Configuration successfully saved.');
-              btnClose.disabled = false; 
-              statusText.style.display = 'block'; 
-            })
-            .catch(function(err) {
-              console.error('Settings write-back failed:', err);
+              if (currentDeviceId && dev.id === currentDeviceId) {
+                option.selected = true;
+              }
+              devSelect.add(option);
             });
-        });
-      })
-      .catch(function(err) {
-        devSelect.innerHTML = `<option>Error initializing configuration</option>`;
-        console.error("Data bridge initialization failed:", err);
+
+            // 4. Cascade Trigger if valid config exists
+            if (currentDeviceId && devicesCache[currentDeviceId]) {
+              populateCapabilities(devicesCache, currentDeviceId, currentCapId);
+              btnClose.disabled = false;
+            } else {
+              capSelect.innerHTML = '<option value="" selected disabled>-- Choose a device first --</option>';
+              capSelect.disabled = true;
+            }
+
+            // 5. Setup Interactive Event Observers locally
+            devSelect.onchange = function () {
+              statusText.style.display = 'none';
+              btnClose.disabled = true;
+              populateCapabilities(devicesCache, devSelect.value);
+            };
+
+            capSelect.onchange = function () {
+              statusText.style.display = 'none';
+
+              const payload = {
+                target_integrator_id: activeIntegratorId,
+                reflected_device_id: devSelect.value,
+                reflected_capability_id: capSelect.value
+              };
+
+              window.Homey.emit('save_reflection_settings', payload)
+                .then(function () {
+                  console.log('Configuration successfully saved.');
+                  btnClose.disabled = false;
+                  statusText.style.display = 'block';
+                })
+                .catch(function (err) {
+                  console.error('Settings write-back failed:', err);
+                });
+            };
+          })
+          .catch(function (err) {
+            devSelect.innerHTML = `<option>Error initializing configuration</option>`;
+            console.error("Data bridge initialization failed:", err);
+          });
+      }
+
+      // Initial run on UI load
+      loadSystemLandscape();
+
+      // Trigger reload cycle when the checkbox is toggled
+      filterToggle.addEventListener('change', function () {
+        statusText.style.display = 'none';
+        btnClose.disabled = true;
+        // Feed the active dropdown selections back into the loader to preserve them
+        loadSystemLandscape(devSelect.value, capSelect.value);
       });
 
-      // Abstracted Helper: Expects cache array passed explicitly
+      // Abstracted Helper
       function populateCapabilities(cache, deviceId, selectedCapId = null) {
         const targetDevice = cache[deviceId];
-        
+
         capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
         capSelect.disabled = false;
 
@@ -287,7 +314,7 @@
           const option = document.createElement('option');
           option.value = cap.id;
           option.text = cap.title;
-          
+
           if (selectedCapId && cap.id === selectedCapId) {
             option.selected = true;
           }
@@ -295,7 +322,7 @@
         });
       }
 
-      btnClose.addEventListener('click', function() {
+      btnClose.addEventListener('click', function () {
         if (typeof window.Homey.done === 'function') {
           window.Homey.done();
         }
@@ -304,7 +331,6 @@
 
     initPicker();
   </script>
-
 </body>
 
 </html>
