@@ -39,17 +39,13 @@
     </div>
   </div>
 
-  <script type="text/javascript">
-    // 1. The DOM elements are the only true global constants
-    const devSelect = document.getElementById('dev-select');
-    const capSelect = document.getElementById('cap-select');
-    const btnClose = document.getElementById('btn-close');
-    const statusText = document.getElementById('status-text');
-    const filterToggle = document.getElementById('filter-toggle'); // Cached element
-
-    function initPicker() {
+<script type="text/javascript">
+    // ==========================================
+    // PART 1: Shared Stateless Bridge Helper
+    // ==========================================
+    function createHomeyPickerBridge({ onReadLiveSelection, onRender }) {
       if (typeof window.Homey === 'undefined') {
-        setTimeout(initPicker, 50);
+        setTimeout(() => createHomeyPickerBridge({ onReadLiveSelection, onRender }), 50);
         return;
       }
 
@@ -57,134 +53,99 @@
         window.Homey.ready();
       }
 
-      // 2. Define the re-runnable landscape loading function
-      function loadSystemLandscape(savedDeviceId = null, savedCapId = null) {
-        const strictModeActive = filterToggle.checked;
+      function syncLandscape() {
+        const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
 
-        // Sequence Step 1: Always grab the current repair device settings first
         window.Homey.emit('get_current_repair_device', {})
-          .then(function (identity) {
+          .then(identity => {
+            const targetDevId = savedDeviceId || identity.reflected_device_id;
+            const targetCapId = savedCapId || identity.reflected_capability_id;
 
-            // Sequence Step 2: Now we can safely calculate our current IDs
-            const currentDeviceId = savedDeviceId || identity.reflected_device_id;
-            const currentCapId = savedCapId || identity.reflected_capability_id;
-
-            // Sequence Step 3: Pass those active IDs straight to the registry fetch
             return window.Homey.emit('get_system_devices', {
-              strict: strictModeActive,
-              currentDeviceId: currentDeviceId,
-              currentCapabilityId: currentCapId
-            })
-              .then(function (devicesCache) {
-                // Package both results together so your existing UI rendering block works unchanged
-                return [identity, devicesCache];
-              });
+              strict: strictMode,
+              currentDeviceId: targetDevId,
+              currentCapabilityId: targetCapId
+            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId }));
           })
-          .then(function (results) {
-            const identity = results[0];
-            const devicesCache = results[1];
-            const activeIntegratorId = identity.id;
-
-            // Re-calculate local references for the UI population logic block
-            const currentDeviceId = savedDeviceId || identity.reflected_device_id;
-            const currentCapId = savedCapId || identity.reflected_capability_id;
-
-            // 3. Populate Device Dropdown
-            devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
-            Object.keys(devicesCache).forEach(id => {
-              const dev = devicesCache[id];
-              const option = document.createElement('option');
-              option.value = dev.id;
-              option.text = dev.name + ` [${dev.zoneName}]`;
-
-              if (currentDeviceId && dev.id === currentDeviceId) {
-                option.selected = true;
-              }
-              devSelect.add(option);
-            });
-
-            // 4. Cascade Trigger if valid config exists
-            if (currentDeviceId && devicesCache[currentDeviceId]) {
-              populateCapabilities(devicesCache, currentDeviceId, currentCapId);
-              btnClose.disabled = false;
-            } else {
-              capSelect.innerHTML = '<option value="" selected disabled>-- Choose a device first --</option>';
-              capSelect.disabled = true;
-            }
-
-            // 5. Setup Interactive Event Observers locally
-            devSelect.onchange = function () {
-              statusText.style.display = 'none';
-              btnClose.disabled = true;
-              populateCapabilities(devicesCache, devSelect.value);
-            };
-
-            capSelect.onchange = function () {
-              statusText.style.display = 'none';
-
-              const payload = {
-                target_integrator_id: activeIntegratorId,
-                reflected_device_id: devSelect.value,
-                reflected_capability_id: capSelect.value
-              };
-
-              window.Homey.emit('save_reflection_settings', payload)
-                .then(function () {
-                  console.log('Configuration successfully saved.');
-                  btnClose.disabled = false;
-                  statusText.style.display = 'block';
-                })
-                .catch(function (err) {
-                  console.error('Settings write-back failed:', err);
-                });
-            };
+          .then(context => {
+            onRender(context);
           })
-          .catch(function (err) {
-            devSelect.innerHTML = `<option>Error initializing configuration</option>`;
-            console.error("Data bridge initialization failed:", err);
+          .catch(err => {
+            console.error("Homey Picker Bridge execution failure:", err);
           });
       }
 
-      // Initial run on UI load
-      loadSystemLandscape();
-
-      // Trigger reload cycle when the checkbox is toggled
-      filterToggle.addEventListener('change', function () {
-        statusText.style.display = 'none';
-        btnClose.disabled = true;
-        // Feed the active dropdown selections back into the loader to preserve them
-        loadSystemLandscape(devSelect.value, capSelect.value);
-      });
-
-      // Abstracted Helper
-      function populateCapabilities(cache, deviceId, selectedCapId = null) {
-        const targetDevice = cache[deviceId];
-
-        capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
-        capSelect.disabled = false;
-
-        if (!targetDevice || !targetDevice.capabilities) return;
-
-        targetDevice.capabilities.forEach(cap => {
-          const option = document.createElement('option');
-          option.value = cap.id;
-          option.text = cap.title;
-
-          if (selectedCapId && cap.id === selectedCapId) {
-            option.selected = true;
-          }
-          capSelect.add(option);
-        });
-      }
-
-      btnClose.addEventListener('click', function () {
-        if (typeof window.Homey.done === 'function') {
-          window.Homey.done();
-        }
-      });
+      syncLandscape();
+      return { refresh: syncLandscape };
     }
 
-    initPicker();
+    // ==========================================
+    // PART 2: Local UI Logic Implementation
+    // ==========================================
+    const devSelect = document.getElementById('dev-select');
+    const capSelect = document.getElementById('cap-select');
+    const btnClose = document.getElementById('btn-close');
+    const statusText = document.getElementById('status-text');
+    const filterToggle = document.getElementById('filter-toggle');
+
+    const bridge = createHomeyPickerBridge({
+      
+      onReadLiveSelection: () => ({
+        savedDeviceId: devSelect.value || null,
+        savedCapId: capSelect.value || null,
+        strictMode: filterToggle.checked
+      }),
+
+      onRender: ({ identity, devicesCache, targetDevId, targetCapId }) => {
+        // 1. Populate Device Dropdown
+        devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+        Object.keys(devicesCache).forEach(id => {
+          const dev = devicesCache[id];
+          const option = new Option(dev.name + ` [${dev.zoneName}]`, dev.id);
+          if (targetDevId && dev.id === targetDevId) option.selected = true;
+          devSelect.add(option);
+        });
+
+        // 2. Handle Cascading Capabilities Dropdown
+        const targetDevice = devicesCache[targetDevId];
+        if (targetDevId && targetDevice) {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
+          capSelect.disabled = false;
+          
+          (targetDevice.capabilities || []).forEach(cap => {
+            const option = new Option(cap.title, cap.id);
+            if (targetCapId && cap.id === targetCapId) option.selected = true;
+            capSelect.add(option);
+          });
+          btnClose.disabled = false;
+        } else {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Choose a device first --</option>';
+          capSelect.disabled = true;
+          btnClose.disabled = true;
+        }
+
+        // 3. Set up standard interactive DOM mutations
+        devSelect.onchange = () => {
+          statusText.style.display = 'none';
+          bridge.refresh();
+        };
+
+        capSelect.onchange = () => {
+          statusText.style.display = 'none';
+          window.Homey.emit('save_reflection_settings', {
+            target_integrator_id: identity.id,
+            reflected_device_id: devSelect.value,
+            reflected_capability_id: capSelect.value
+          })
+          .then(() => { statusText.style.display = 'block'; })
+          .catch(err => console.error('Write-back failed:', err));
+        };
+      }
+    });
+
+    // 4. Global static UI triggers
+    filterToggle.addEventListener('change', () => bridge.refresh());
+    btnClose.addEventListener('click', () => window.Homey.done?.());
   </script>
 </body>
 
