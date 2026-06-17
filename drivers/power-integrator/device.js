@@ -7,94 +7,21 @@ class PowerIntegratorDevice extends Homey.Device {
   async onInit() {
     this.log(`Device [${this.getName()}] initializing...`);
     await this.driver.ready();
-
-    this.homeyApi = null;
-    this.targetDeviceInstance = null;
-    this.lastTimestampMs = this.getCapabilityValue('measure_time') || null;
-
-    // Initialize the Web API wrapper
-    await this.initLocalWebApi();
-
-    // Start listening to our configured target
+    this.capabilityInstance = null;
     const settings = this.getSettings();
-    const targetId = settings.reflected_device_id || null;
-    const targetCapability = settings.reflected_capability_id || null;
-
-    await this.updateTargetSubscription(targetId, targetCapability);
+    await this.configureCapabilitySubscription(
+      settings.reflected_device_id,
+      settings.reflected_capability_id,
+    )
   }
 
   /**
-   * Secure a local Web API session for this specific device instance
+   * Triggers automatically whenever the subscribed capability pushes an update
    */
-  async initLocalWebApi() {
-    this.homeyApi = await this.driver.homeyApi();
-
-    if (!this.homeyApi) {
-      this.error('Failed to inject API: Parent driver session is not ready!');
-      return;
-    }
-
-    this.log('Web API successfully injected from parent Driver.');
-  }
-
-  /**
-   * Tears down any old listener and binds cleanly to the currently configured target settings
-   */
-  async updateTargetSubscription(targetId, targetCapability) {
-    // 1. Clean up existing listener if the user changed settings or device is reloading
-    if (this.capabilityInstance) {
-      this.log('Destroying official capability instance wrapper...');
-      try {
-        this.capabilityInstance.destroy();
-      } catch (err) {
-        this.error('Error destroying capability instance:', err);
-      }
-      this.capabilityInstance = null;
-    }
-
-    if (this.targetDeviceInstance) {
-      this.targetDeviceInstance = null;
-    }
-    if (!this.homeyApi) return;
-
-    // const settings = this.getSettings();
-    // const targetId = settings.reflected_device_id;
-    // const targetCapability = settings.reflected_capability_id;
-
-    // If settings are blank (e.g., right after pairing), pause until configured
-    if (!targetId || !targetCapability) {
-      this.log('No reflection target configured yet. Standing by...');
-      return;
-    }
-
-    try {
-      this.log(`Attempting connection to targeted source device: ${targetId}`);
-
-      // 2. Fetch ONLY the specific device we care about from the system
-      this.targetDeviceInstance = await this.homeyApi.devices.getDevice({ id: targetId });
-
-      // 3. Attach a listener to the capability instance
-      this.capabilityInstance = this.targetDeviceInstance.makeCapabilityInstance(targetCapability, (newValue, capabilityInstance) => {
-        const eventTime = Date.parse(capabilityInstance.lastChanged);
-        this.handleReflectedSignal(newValue, eventTime);
-      });
-
-      // 4. Open the socket channel for this single piece of hardware exclusively
-      await this.targetDeviceInstance.connect();
-      this.log(`Successfully subscribed to ${targetId} for capability: ${targetCapability}`);
-
-    } catch (err) {
-      this.error(`Failed to bind reflection target subscription:`, err);
-    }
-  }
-
-  /**
-   * Triggers automatically whenever the targeted capability pushes an update
-   */
-  handleReflectedSignal(newValue, thisTime) {
+  updateFromSubscribedCapability(newValue, thisTime) {
 
     const homeyInstance = this.homey;
-    this.log(`PowerIntegratorDevice.handleReflectedSignal: name: ${this.getName()} newValue: ${newValue} thisTime: ${thisTime}`)
+    this.log(`PowerIntegratorDevice.updateFromSubscribedCapability: name: ${this.getName()} newValue: ${newValue} thisTime: ${thisTime}`)
     const lastTime = this.getCapabilityValue('measure_time');
     const lastPower = this.getCapabilityValue('measure_power') || 0;
     const firstTime = lastTime === null;
@@ -125,54 +52,54 @@ class PowerIntegratorDevice extends Homey.Device {
   }
 
   /**
+   * Internal wrapper to cleanup and reconfigure the target capability subscription
+   */
+  async configureCapabilitySubscription(targetId, targetCapability) {
+    // 1. Clean up old memory links if re-configuring or hot-reloading
+    this.driver.coordinator.destroyCapabilitySubscription(this.capabilityInstance);
+    this.capabilityInstance = null;
+
+    try {
+      // 2. Cascade down, get the return value, and assign it straight to this.xxx in the caller
+      this.capabilityInstance = await this.driver.coordinator.setCapabilitySubscription(
+        targetId,
+        targetCapability,
+        (val, time) => this.updateFromSubscribedCapability(val, time)
+      );
+
+      if (this.capabilityInstance) {
+        this.log(`Active pipeline hook successfully assigned to this.capabilityInstance.`);
+      }
+    } catch (err) {
+      this.error(`Device pipeline configuration error: ${err.message}`);
+    }
+  }
+
+  /**
    * Automatically intercept whenever a user modifies the Advanced Settings panel
    */
   async onSettings({ oldSettings, newSettings, changedKeys }) {
     this.log('Settings modification detected. Re-evaluating reflection pipeline...');
 
-    // Directly intercept whenever either manual box OR picker dropdown modifies the targets
     if (changedKeys.includes('reflected_device_id') || changedKeys.includes('reflected_capability_id')) {
-      this.log('[Device] Core target configurations updated. Re-binding hooks...');
-      const targetId = newSettings.reflected_device_id;
-      const targetCapability = newSettings.reflected_capability_id;
+      this.log('[Device] Advanced settings changed. Re-binding pipeline...');
 
-      // Update the subscription to observed device and capability
-      await this.updateTargetSubscription(targetId, targetCapability);
+    await this.configureCapabilitySubscription(
+        newSettings.reflected_device_id,
+        newSettings.reflected_capability_id
+      );
     }
-
     return true;
   }
-  // async onSettings({ oldSettings, newSettings, changedKeys }) {
-  //   this.log('Settings modification detected. Re-evaluating reflection pipeline...');
-
-  //   // We defer execution slightly to allow Homey to commit the new variables to storage
-  //   this.homey.setTimeout(async () => {
-  //     await this.updateTargetSubscription();
-  //   }, 1000);
-
-  //   return true; // Accept the settings save action cleanly
-  // }
 
   /**
    * Clean up connections if the device gets deleted by the user
    */
   async onDeleted() {
-    // Explicitly destroy the capability instance connection wrapper if it exists
-    if (this.capabilityInstance) {
-      try {
-        this.capabilityInstance.destroy();
-      } catch (e) {
-        this.error('Error destroying capability wrapper on delete:', e);
-      }
-    }
-    this.log('Device destroyed. Connection closed cleanly.');
+    this.driver.coordinator.destroyCapabilitySubscription(this.capabilityInstance);
+    this.capabilityInstance = null;
+    this.log('Device destroyed. Capability Subscription closed cleanly.');
   }
-  // async onDeleted() {
-  //   if (this.targetDeviceInstance) {
-  //     this.targetDeviceInstance.removeAllListeners('capability');
-  //   }
-  //   this.log('Device destroyed. Connection closed cleanly.');
-  // }
 
 }
 

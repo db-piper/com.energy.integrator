@@ -154,8 +154,8 @@ class DiscoveryCoordinator {
       });
 
       // 2. Trigger dynamic event listener synchronization if implemented on the device
-      if (typeof sessionDevice.updateTargetSubscription === 'function') {
-        await sessionDevice.updateTargetSubscription(
+      if (typeof sessionDevice.configureCapabilitySubscription === 'function') {
+        await sessionDevice.configureCapabilitySubscription(
           payload.reflected_device_id, 
           payload.reflected_capability_id
         );
@@ -166,6 +166,60 @@ class DiscoveryCoordinator {
       throw new Error(err.message || err.toString());
     }
   }
+
+  /**
+   * Generates a live capability subscription stream, forwarding events to the device callback
+   * @param {string}                    targetId           The target device UUID to observe
+   * @param {string}                    targetCapability   The capability ID (e.g., measure_power)
+   * @param {Function}                  onSignalCallback   Bound arrow function to trigger on updates
+   * @returns {Promise<Object|null>}                       The official capability wrapper instance for local tracking
+   */
+  async setCapabilitySubscription(targetId, targetCapability, onSignalCallback) {
+    await this._initializePromise;
+
+    if (!targetId || !targetCapability) {
+      this.homey.app.log('[DiscoveryCoordinator] Subscription bypassed: Missing configuration bounds.');
+      return null;
+    }
+
+    try {
+      this.homey.app.log(`[DiscoveryCoordinator] Initiating target stream hook for: ${targetId}`);
+
+      // Fetch specific device topology mapping
+      const targetDevice = await this._homeyApi.devices.getDevice({ id: targetId });
+
+      const capabilityInstance = targetDevice.makeCapabilityInstance(
+        targetCapability, 
+        (newValue, rawInstance) => {
+          const eventTime = Date.parse(rawInstance.lastChanged);
+          onSignalCallback(newValue, eventTime);
+        }
+      );
+
+      await targetDevice.connect();
+      return capabilityInstance;
+
+    } catch (err) {
+      this.homey.app.error(`[DiscoveryCoordinator] Failed to set target subscription:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Safely tears down an active capability instance stream to prevent memory leaks
+   * @param {Object|null} capabilityInstance - The live wrapper instance to destroy
+   */
+  destroyCapabilitySubscription(capabilityInstance) {
+    if (!capabilityInstance) return;
+
+    try {
+      this.homey.app.log('[DiscoveryCoordinator] Explicitly destroying active capability stream wrapper...');
+      capabilityInstance.destroy();
+    } catch (err) {
+      this.homey.app.error('[DiscoveryCoordinator] Error during capability stream destruction:', err);
+    }
+  }
+
 }
 
 module.exports = DiscoveryCoordinator;
