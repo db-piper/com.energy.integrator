@@ -16,7 +16,6 @@ module.exports = class abstractIntegrator extends Homey.Device {
       settings.reflected_device_id,
       settings.reflected_capability_id,
     )
-    this.scheduleMidnightReset();    
   }
 
   /**
@@ -45,7 +44,6 @@ module.exports = class abstractIntegrator extends Homey.Device {
    * onDeleted is called when the user deleted the device - clean up the subscriptions.
    */
   async onDeleted() {
-    if (this.midnightTimeout) this.homey.clearTimeout(this.midnightTimeout);
     this.driver.coordinator.destroyCapabilitySubscription(this.capabilityInstance);
     this.capabilityInstance = null;
     this.log('Device destroyed. Capability Subscription closed cleanly.');
@@ -83,57 +81,23 @@ module.exports = class abstractIntegrator extends Homey.Device {
   }
 
   /**
-   * Schedules a single execution execution for the upcoming local wall-clock midnight.
-   * Completely immune to forced UTC runtimes and DST boundaries.
-   */
-  scheduleMidnightReset() {
-    const tz = this.homey.clock.getTimezone(); // e.g., "Europe/London"
-    const now = new Date();
-
-    // 1. Shift a date reference object precisely 1 calendar day forward
-    // JS natively rolls over months/years if 'now' is the last day of the month
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // 2. Extract tomorrow's calendar date string format (YYYY-MM-DD) anchored to the user's timezone
-    const tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(tomorrow);
-
-    // 3. Force create the absolute epoch timestamp for that target date at exactly 00:00:00 local time
-    const localMidnightEpoch = Date.parse(`${tomorrowStr}T00:00:00.000`, { timeZone: tz });
-
-    // 4. Calculate the real-world millisecond delay from this exact moment
-    const msToMidnight = localMidnightEpoch - now.getTime();
-    
-    this.log(`[abstractIntegrator] Next midnight reset scheduled in ${Math.round(msToMidnight / 1000 / 60)} minutes.`);
-
-    // 5. Fire a single timeout, then recalculate recursively to stay dynamically aligned across DST shifts
-    this.midnightTimeout = this.homey.setTimeout(async () => {
-      await this.executeMidnightReset();
-      this.scheduleMidnightReset(); // Loop recursively to set up the next day's epoch tracker
-    }, msToMidnight);
-  }
-
-  /**
-   * Execution worker: Sweeps through and flushes targeted parameters
+   * Standardized supervisor method triggered exclusively by the App orchestrator
    */
   async executeMidnightReset() {
-    this.log(`[abstractIntegrator] Local midnight reached. Triggering daily capability flush...`);
+    this.log(`[abstractIntegrator] Resetting capabilities for [${this.getName()}]...`);
     
     try {
       const targetResets = [];
 
-      // Phase 1 POC: Manual check
-      // (Will be upgraded to automated iteration once ReflectionArray is implemented)
+      // Phase 1 POC (Ready to be upgraded to your ReflectionArray loop next)
       if (this.hasCapability('meter_power.today')) {
-        this.log(`[abstractIntegrator] Resetting meter_power.today to 0...`);
         targetResets.push(this.setCapabilityValue('meter_power.today', 0));
       }
 
-      // Execute resets concurrently and safely
       await Promise.all(targetResets);
-      this.log(`[abstractIntegrator] Daily reset cycle executed successfully.`);
     } catch (err) {
-      this.error(`[abstractIntegrator] Failed executing daily rollover reset:`, err);
+      this.error(`[abstractIntegrator] Execution failed for [${this.getName()}]:`, err);
+      throw err; // Propagate up to app logs
     }
   }
 
