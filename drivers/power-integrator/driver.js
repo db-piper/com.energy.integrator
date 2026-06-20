@@ -1,7 +1,6 @@
 'use strict';
 
 const Homey = require('homey');
-//const { HomeyAPI } = require('homey-api');
 const DiscoveryCoordinator = require('../../modules/discoveryCoordinator');
 
 module.exports = class powerIntegrator extends Homey.Driver {
@@ -14,13 +13,17 @@ module.exports = class powerIntegrator extends Homey.Driver {
     this.log('[powerIntegrator:onInit] Driver has been initialized');
   }
 
+  /**
+   * Return the single instance of homeyAPI
+   * @returns {Object}        homeyApi instance
+   */
   async homeyApi() {
     return this.coordinator.homeyApi();
   }
 
   /**
-   * Streamlined Pair Session Entry Point
-   * Uses frontend instantiation, eliminating the need for list_devices tracking
+   * Handle front-end events from the pairing session
+   * @param   {homey.session}   session     pairing session object
    */
   onPair(session) {
     this.log('--- Pair Session Active ---');
@@ -34,13 +37,12 @@ module.exports = class powerIntegrator extends Homey.Driver {
       return this.coordinator.getSystemDevices(query);
     });
 
-    // Device creation is completed by the frontend using Homey API method createDevice
-
   }
 
   /**
-     * Main Repair Session Entry Point
-     * Fully utilizing the official (session, sessionDevice) SDK signature
+   * Handle front-end events from the repairing session
+   * @param     {Homey.session}    session        repairing session object
+   * @param     {Homey.Device}     sessionDevice  device being repaired
    */
   onRepair(session, sessionDevice) {
     this.log(`--- Repair Session Active: ${sessionDevice.getName()} ---`);
@@ -56,5 +58,6 @@ module.exports = class powerIntegrator extends Homey.Driver {
     session.setHandler('save_reflection_settings', async (payload) => {
       return this.coordinator.saveReflectionSettings(sessionDevice, payload);
     });
+    
   }
 };
