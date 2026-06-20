@@ -16,6 +16,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
       settings.reflected_device_id,
       settings.reflected_capability_id,
     )
+    this.scheduleMidnightReset();    
   }
 
   /**
@@ -44,6 +45,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
    * onDeleted is called when the user deleted the device - clean up the subscriptions.
    */
   async onDeleted() {
+    if (this.midnightTimeout) this.homey.clearTimeout(this.midnightTimeout);
     this.driver.coordinator.destroyCapabilitySubscription(this.capabilityInstance);
     this.capabilityInstance = null;
     this.log('Device destroyed. Capability Subscription closed cleanly.');
@@ -81,32 +83,87 @@ module.exports = class abstractIntegrator extends Homey.Device {
   }
 
   /**
-   * Checks if the interval between two epoch millisecond timestamps includes midnight,
-   * dynamically respecting the Homey user's local timezone and DST settings.
-   * @param   {number} epochMillis1 -   First timestamp
-   * @param   {number} epochMillis2 -   Second timestamp
-   * @param   {string} homeyTimeZone -  Timezone string set in Homey
-   * @returns {boolean}                 True if the interval crosses local midnight
+   * Schedules a single execution execution for the upcoming local wall-clock midnight.
+   * Completely immune to forced UTC runtimes and DST boundaries.
    */
-  includesMidnight(epochMillis1, epochMillis2) {
+  scheduleMidnightReset() {
+    const tz = this.homey.clock.getTimezone(); // e.g., "Europe/London"
+    const now = new Date();
 
-    const homeyTimeZone = this.homey.clock.getTimezone();
-    const d1 = new Date(epochMillis1);
-    const d2 = new Date(epochMillis2);
+    // 1. Shift a date reference object precisely 1 calendar day forward
+    // JS natively rolls over months/years if 'now' is the last day of the month
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // 2. Format the dates utilizing Homey's local timezone
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: homeyTimeZone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric'
-    });
+    // 2. Extract tomorrow's calendar date string format (YYYY-MM-DD) anchored to the user's timezone
+    const tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(tomorrow);
 
-    const dateStr1 = formatter.format(d1);
-    const dateStr2 = formatter.format(d2);
+    // 3. Force create the absolute epoch timestamp for that target date at exactly 00:00:00 local time
+    const localMidnightEpoch = Date.parse(`${tomorrowStr}T00:00:00.000`, { timeZone: tz });
 
-    // 3. If the calendar dates match, midnight was not crossed.
-    return dateStr1 !== dateStr2;
+    // 4. Calculate the real-world millisecond delay from this exact moment
+    const msToMidnight = localMidnightEpoch - now.getTime();
+    
+    this.log(`[abstractIntegrator] Next midnight reset scheduled in ${Math.round(msToMidnight / 1000 / 60)} minutes.`);
+
+    // 5. Fire a single timeout, then recalculate recursively to stay dynamically aligned across DST shifts
+    this.midnightTimeout = this.homey.setTimeout(async () => {
+      await this.executeMidnightReset();
+      this.scheduleMidnightReset(); // Loop recursively to set up the next day's epoch tracker
+    }, msToMidnight);
   }
+
+  /**
+   * Execution worker: Sweeps through and flushes targeted parameters
+   */
+  async executeMidnightReset() {
+    this.log(`[abstractIntegrator] Local midnight reached. Triggering daily capability flush...`);
+    
+    try {
+      const targetResets = [];
+
+      // Phase 1 POC: Manual check
+      // (Will be upgraded to automated iteration once ReflectionArray is implemented)
+      if (this.hasCapability('meter_power.today')) {
+        this.log(`[abstractIntegrator] Resetting meter_power.today to 0...`);
+        targetResets.push(this.setCapabilityValue('meter_power.today', 0));
+      }
+
+      // Execute resets concurrently and safely
+      await Promise.all(targetResets);
+      this.log(`[abstractIntegrator] Daily reset cycle executed successfully.`);
+    } catch (err) {
+      this.error(`[abstractIntegrator] Failed executing daily rollover reset:`, err);
+    }
+  }
+
+  // /**
+  //  * Checks if the interval between two epoch millisecond timestamps includes midnight,
+  //  * dynamically respecting the Homey user's local timezone and DST settings.
+  //  * @param   {number} epochMillis1 -   First timestamp
+  //  * @param   {number} epochMillis2 -   Second timestamp
+  //  * @param   {string} homeyTimeZone -  Timezone string set in Homey
+  //  * @returns {boolean}                 True if the interval crosses local midnight
+  //  */
+  // includesMidnight(epochMillis1, epochMillis2) {
+
+  //   const homeyTimeZone = this.homey.clock.getTimezone();
+  //   const d1 = new Date(epochMillis1);
+  //   const d2 = new Date(epochMillis2);
+
+  //   // 2. Format the dates utilizing Homey's local timezone
+  //   const formatter = new Intl.DateTimeFormat('en-CA', {
+  //     timeZone: homeyTimeZone,
+  //     year: 'numeric',
+  //     month: 'numeric',
+  //     day: 'numeric'
+  //   });
+
+  //   const dateStr1 = formatter.format(d1);
+  //   const dateStr2 = formatter.format(d2);
+
+  //   // 3. If the calendar dates match, midnight was not crossed.
+  //   return dateStr1 !== dateStr2;
+  // }
 
 }

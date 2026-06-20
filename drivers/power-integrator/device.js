@@ -28,10 +28,11 @@ class PowerIntegratorDevice extends abstractIntegrator {
       const lastEnergyToday = this.getCapabilityValue('meter_power.today') || 0;
       const deltaTime = thisTime - lastTime;
       const deltaEnergy = (lastPower / 1000) * (deltaTime / 3600000);
-      const isNewDay = this.includesMidnight(lastTime, thisTime);
+      //const isNewDay = this.includesMidnight(lastTime, thisTime);
       updates.push(
         this.setCapabilityValue('meter_power', deltaEnergy + lastEnergyTotal),
-        this.setCapabilityValue('meter_power.today', deltaEnergy + (isNewDay ? 0 : lastEnergyToday)),
+        //this.setCapabilityValue('meter_power.today', deltaEnergy + (isNewDay ? 0 : lastEnergyToday)),
+        this.setCapabilityValue('meter_power.today', deltaEnergy + lastEnergyToday),
         this.setCapabilityValue('measure_interval', deltaTime / 1000)
       )
     }
