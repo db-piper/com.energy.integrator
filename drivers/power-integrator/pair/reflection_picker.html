@@ -165,8 +165,12 @@
           id: Date.now().toString(36) // Unique dynamic tracking token
         },
         settings: {
-          reflected_device_id: devSelect.value,
-          reflected_capability_id: capSelect.value
+          reflection_configuration_json: JSON.stringify({
+            "measure_power": {
+              reflected_device_id: devSelect.value,
+              reflected_capability_id: capSelect.value
+            }
+          })
         }
       })
         .then(() => {

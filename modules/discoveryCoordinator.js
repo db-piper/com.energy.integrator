@@ -58,10 +58,21 @@ class DiscoveryCoordinator {
     }
 
     const currentSettings = sessionDevice.getSettings();
+    let configObject = {};
+
+    try {
+      configObject = JSON.parse(currentSettings.reflection_configuration_json || '{}');
+    } catch (e) {
+      configObject = {};
+    }
+
+    // Extract the flat fallbacks out of our target key context for the picker view
+    const measurePowerMapping = configObject["measure_power"] || {};
+
     return {
       id: sessionDevice.getData().id,
-      reflected_device_id: currentSettings.reflected_device_id || null,
-      reflected_capability_id: currentSettings.reflected_capability_id || null
+      reflected_device_id: measurePowerMapping.reflected_device_id || null,
+      reflected_capability_id: measurePowerMapping.reflected_capability_id || null
     };
   }
 
@@ -99,8 +110,8 @@ class DiscoveryCoordinator {
         const capabilitiesArray = Object.keys(targetCapabilities)
           .filter(capId => {
             // Safeguard evaluation matrix for null or blank pairing bounds
-            const isCurrent = currentDevId && currentCapId && 
-                              device.id === currentDevId && capId === currentCapId;
+            const isCurrent = currentDevId && currentCapId &&
+              device.id === currentDevId && capId === currentCapId;
 
             let include = false;
             if (isStrict) {
@@ -147,20 +158,26 @@ class DiscoveryCoordinator {
     }
 
     try {
-      // 1. Commit identifiers straight to Homey storage properties
-      await sessionDevice.setSettings({
+      const currentSettings = sessionDevice.getSettings();
+      let configObject = {};
+
+      try {
+        configObject = JSON.parse(currentSettings.reflection_configuration_json || '{}');
+      } catch (e) {
+        configObject = {};
+      }
+
+      // Dynamically target the key we are working with
+      configObject["measure_power"] = {
         reflected_device_id: payload.reflected_device_id,
         reflected_capability_id: payload.reflected_capability_id
+      };
+
+      await sessionDevice.setSettings({
+        reflection_configuration_json: JSON.stringify(configObject)
       });
 
-      // 2. Trigger dynamic event listener synchronization if implemented on the device
-      if (typeof sessionDevice.configureCapabilitySubscription === 'function') {
-        await sessionDevice.configureCapabilitySubscription(
-          payload.reflected_device_id, 
-          payload.reflected_capability_id
-        );
-      }
-      
+      this.log(`[DiscoveryCoordinator] Committed JSON configuration map for measure_power.`);
       return true;
     } catch (err) {
       throw new Error(err.message || err.toString());
@@ -189,7 +206,7 @@ class DiscoveryCoordinator {
       const targetDevice = await this._homeyApi.devices.getDevice({ id: targetId });
 
       const capabilityInstance = targetDevice.makeCapabilityInstance(
-        targetCapability, 
+        targetCapability,
         (newValue, rawInstance) => {
           const eventTime = Date.parse(rawInstance.lastChanged);
           onSignalCallback(newValue, eventTime);
