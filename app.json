@@ -106,6 +106,94 @@
         }
       ],
       "id": "c1d1-power-integrator"
+    },
+    {
+      "name": {
+        "en": "C1D2 Power Integrator"
+      },
+      "class": "sensor",
+      "capabilities": [
+        "measure_power",
+        "meter_power.input",
+        "meter_power.input_today",
+        "meter_power.output",
+        "meter_power.output_today",
+        "measure_time",
+        "measure_interval"
+      ],
+      "capabilitiesOptions": {
+        "measure_power": {
+          "title": {
+            "en": "Power"
+          },
+          "units": {
+            "en": "W"
+          },
+          "decimals": 0,
+          "getable": true
+        },
+        "meter_power.input": {
+          "title": {
+            "en": "Input Energy"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "meter_power.input_today": {
+          "title": {
+            "en": "Input Energy Today"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "meter_power.output": {
+          "title": {
+            "en": "Output Energy"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "meter_power.output_today": {
+          "title": {
+            "en": "Output Energy Today"
+          },
+          "units": {
+            "en": "kWh"
+          },
+          "decimals": 3,
+          "getable": true
+        },
+        "measure_time": {
+          "title": {
+            "en": "Epoch Time"
+          },
+          "units": {
+            "en": "ms"
+          },
+          "decimals": 0,
+          "getable": true,
+          "insights": true
+        }
+      },
+      "platforms": [
+        "local"
+      ],
+      "connectivity": [],
+      "images": {
+        "small": "/drivers/c1d2-power-integrator/assets/images/small.png",
+        "large": "/drivers/c1d2-power-integrator/assets/images/large.png",
+        "xlarge": "/drivers/c1d2-power-integrator/assets/images/xlarge.png"
+      },
+      "id": "c1d2-power-integrator"
     }
   ],
   "capabilities": {

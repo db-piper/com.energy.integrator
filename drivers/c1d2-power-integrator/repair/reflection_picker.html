@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/app/com.energy.integrator/assets/css/app.css">
+</head>
+
+<body>
+
+  <div class="picker-wrapper">
+    <h1 class="homey-title">Device and Capability Chooser</h1>
+    <p class="homey-subtitle">Choose a <b>Device</b> and <b>Capability</b> to be the <b>Power Source</b> for this
+      Integrator.</p>
+
+    <div class="form-group">
+      <label class="homey-label" for="dev-select">1. Source Device</label>
+      <select id="dev-select" class="homey-select">
+        <option value="">Querying available devices...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="homey-label" for="cap-select">2. Source Capability</label>
+      <select id="cap-select" class="homey-select" disabled>
+        <option value="">-- Choose a device first --</option>
+      </select>
+    </div>
+
+    <div class="toggle-group">
+      <input type="checkbox" id="filter-toggle" class="toggle-input">
+      <label for="filter-toggle" class="toggle-label">Show only measure.power
+        capabilities</label>
+    </div>
+
+    <div class="action-bar">
+      <button id="btn-close" class="homey-button-primary" disabled>Save & Close</button>
+      <div id="status-text" class="status-toast">Configuration committed successfully!</div>
+    </div>
+  </div>
+
+<script type="text/javascript">
+    // ==========================================
+    // PART 1: Shared Stateless Bridge Helper
+    // ==========================================
+    function createHomeyPickerBridge({ onReadLiveSelection, onRender }) {
+      if (typeof window.Homey === 'undefined') {
+        setTimeout(() => createHomeyPickerBridge({ onReadLiveSelection, onRender }), 50);
+        return;
+      }
+
+      if (typeof window.Homey.ready === 'function') {
+        window.Homey.ready();
+      }
+
+      function syncLandscape() {
+        const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
+
+        window.Homey.emit('get_current_device', {})
+          .then(identity => {
+            const targetDevId = savedDeviceId || identity.reflected_device_id;
+            const targetCapId = savedCapId || identity.reflected_capability_id;
+
+            return window.Homey.emit('get_system_devices', {
+              strict: strictMode,
+              currentDeviceId: targetDevId,
+              currentCapabilityId: targetCapId
+            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId }));
+          })
+          .then(context => {
+            onRender(context);
+          })
+          .catch(err => {
+            console.error("Homey Picker Bridge execution failure:", err);
+          });
+      }
+
+      syncLandscape();
+      return { refresh: syncLandscape };
+    }
+
+    // ==========================================
+    // PART 2: Local UI Logic Implementation
+    // ==========================================
+    const devSelect = document.getElementById('dev-select');
+    const capSelect = document.getElementById('cap-select');
+    const btnClose = document.getElementById('btn-close');
+    const statusText = document.getElementById('status-text');
+    const filterToggle = document.getElementById('filter-toggle');
+
+    const bridge = createHomeyPickerBridge({
+      
+      onReadLiveSelection: () => ({
+        savedDeviceId: devSelect.value || null,
+        savedCapId: capSelect.value || null,
+        strictMode: filterToggle.checked
+      }),
+
+      onRender: ({ identity, devicesCache, targetDevId, targetCapId }) => {
+        // 1. Populate Device Dropdown
+        devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
+        Object.keys(devicesCache).forEach(id => {
+          const dev = devicesCache[id];
+          const option = new Option(dev.name + ` [${dev.zoneName}]`, dev.id);
+          if (targetDevId && dev.id === targetDevId) option.selected = true;
+          devSelect.add(option);
+        });
+
+        // 2. Handle Cascading Capabilities Dropdown
+        const targetDevice = devicesCache[targetDevId];
+        if (targetDevId && targetDevice) {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
+          capSelect.disabled = false;
+          
+          (targetDevice.capabilities || []).forEach(cap => {
+            const option = new Option(cap.title, cap.id);
+            if (targetCapId && cap.id === targetCapId) option.selected = true;
+            capSelect.add(option);
+          });
+          btnClose.disabled = false;
+        } else {
+          capSelect.innerHTML = '<option value="" selected disabled>-- Choose a device first --</option>';
+          capSelect.disabled = true;
+          btnClose.disabled = true;
+        }
+
+        // 3. Set up standard interactive DOM mutations
+        devSelect.onchange = () => {
+          statusText.style.display = 'none';
+          bridge.refresh();
+        };
+
+        capSelect.onchange = () => {
+          statusText.style.display = 'none';
+          window.Homey.emit('save_reflection_settings', {
+            target_integrator_id: identity.id,
+            reflected_device_id: devSelect.value,
+            reflected_capability_id: capSelect.value
+          })
+          .then(() => { statusText.style.display = 'block'; })
+          .catch(err => console.error('Write-back failed:', err));
+        };
+      }
+    });
+
+    // 4. Global static UI triggers
+    filterToggle.addEventListener('change', () => bridge.refresh());
+    btnClose.addEventListener('click', () => window.Homey.done?.());
+  </script>
+</body>
+
+</html>

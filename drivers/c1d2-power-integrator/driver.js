@@ -3,7 +3,7 @@
 const Homey = require('homey');
 const DiscoveryCoordinator = require('../../modules/discoveryCoordinator');
 
-module.exports = class c1d1PowerIntegrator extends Homey.Driver {
+module.exports = class c1d2PowerIntegrator extends Homey.Driver {
 
   /**
    * onInit is called when the driver is initialized.
