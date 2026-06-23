@@ -60,21 +60,33 @@ module.exports = class abstractIntegrator extends Homey.Device {
     this.capabilityInstance = null;
 
     try {
-      // 2. Cascade down, get the return value, and assign it straight to this.xxx in the caller
-      this.capabilityInstance = await this.driver.coordinator.setCapabilitySubscription(
-        targetDeviceId,
-        targetCapabilityName,
-        (val, time) => {
-          if (typeof this.updateFromSubscribedCapability === 'function') {
-            this.updateFromSubscribedCapability(val, time);
-          } else {
-            this.error(`Handler missing on child device class context.`);
-          }
-        });
+      const targetCapabilityKey = 'measure_power';
+      const manifest = this.constructor._SUBSCRIPTION_SPECIFICATIONS || {};
+      const updateFunctionName = manifest[targetCapabilityKey]?.updateFunctionName;
 
-      if (this.capabilityInstance) {
-        this.log(`Active pipeline hook successfully assigned to this.capabilityInstance.`);
+      // Positive Verification Guard: Validate the contract exists and is a function
+      if (updateFunctionName && typeof this[updateFunctionName] === 'function') {
+
+        this.log(`[SUPERCLASS] Validation passed: compiling stream directly to this.${updateFunctionName}()`);
+
+        // Lean, high-speed execution loop
+        this.capabilityInstance = await this.driver.coordinator.setCapabilitySubscription(
+          targetDeviceId,
+          targetCapabilityName,
+          (val, time) => {
+            this[updateFunctionName](val, time, targetCapabilityKey);
+          }
+        );
+
+        if (this.capabilityInstance) {
+          this.log(`Active pipeline hook successfully assigned to this.capabilityInstance.`);
+        }
+
+      } else {
+        // Fallback catch-all for missing manifest specs or missing instance methods
+        this.error(`[SUPERCLASS] Compilation aborted: Target method "${updateFunctionName}" is unconfigured or missing from context.`);
       }
+
     } catch (err) {
       this.error(`Device pipeline configuration error: ${err.message}`);
     }
