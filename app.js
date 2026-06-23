@@ -63,6 +63,14 @@ class EnergyIntegratorApp extends Homey.App {
     this.log('[App] Global midnight reset cycle completed.');
   }
 
+  async onUninit() {
+    if (this.midnightTimeout) {
+      this.log(`app.onUninit: Clearing midnight reset timer.`);
+      clearTimeout(this.midnightTimeout);
+      this.midnightTimeout = null;
+      this.log('[App] Midnight reset schedule cancelled cleanly.');
+    }
+  }
 }
 
 module.exports = EnergyIntegratorApp;

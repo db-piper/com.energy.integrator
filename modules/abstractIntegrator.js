@@ -30,7 +30,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
 
       await this.compileAllSubscriptions();
     }
-    
+
     return true;
   }
 
@@ -38,9 +38,34 @@ module.exports = class abstractIntegrator extends Homey.Device {
    * onDeleted is called when the user deleted the device - clean up the subscriptions.
    */
   async onDeleted() {
-    this.driver.coordinator.destroyCapabilitySubscription(this.capabilityInstance);
-    this.capabilityInstance = null;
+    await this.onUninit();
     this.log('Device destroyed. Capability Subscription closed cleanly.');
+  }
+
+  /**
+   * Triggered automatically by Homey when the device is unloaded (app update, restart, shutdown).
+   */
+  async onUninit() {
+    this.log(`Device [${this.getName()}] tearing down. Cleaning up active subscriptions...`);
+
+    if (this._activeSubscriptions) {
+      const activeKeys = Object.keys(this._activeSubscriptions);
+      
+      for (const targetCapabilityKey of activeKeys) {
+        try {
+          this.log(`[SUPERCLASS TEARDOWN] Destroying stream hook for capability: ${targetCapabilityKey}`);
+          
+          // Hand the handle over to the coordinator for explicit destruction
+          this.driver.coordinator.destroyCapabilitySubscription(this._activeSubscriptions[targetCapabilityKey]);
+          
+          delete this._activeSubscriptions[targetCapabilityKey];
+        } catch (err) {
+          this.error(`[SUPERCLASS TEARDOWN] Failed to cleanly sever stream for ${targetCapabilityKey}: ${err.message}`);
+        }
+      }
+    }
+
+    this.log(`Device [${this.getName()}] lifecycle stream hooks severed cleanly.`);
   }
 
   /**
@@ -187,34 +212,5 @@ module.exports = class abstractIntegrator extends Homey.Device {
     return true;
 
   }
-
-  // /**
-  //  * Checks if the interval between two epoch millisecond timestamps includes midnight,
-  //  * dynamically respecting the Homey user's local timezone and DST settings.
-  //  * @param   {number} epochMillis1 -   First timestamp
-  //  * @param   {number} epochMillis2 -   Second timestamp
-  //  * @param   {string} homeyTimeZone -  Timezone string set in Homey
-  //  * @returns {boolean}                 True if the interval crosses local midnight
-  //  */
-  // includesMidnight(epochMillis1, epochMillis2) {
-
-  //   const homeyTimeZone = this.homey.clock.getTimezone();
-  //   const d1 = new Date(epochMillis1);
-  //   const d2 = new Date(epochMillis2);
-
-  //   // 2. Format the dates utilizing Homey's local timezone
-  //   const formatter = new Intl.DateTimeFormat('en-CA', {
-  //     timeZone: homeyTimeZone,
-  //     year: 'numeric',
-  //     month: 'numeric',
-  //     day: 'numeric'
-  //   });
-
-  //   const dateStr1 = formatter.format(d1);
-  //   const dateStr2 = formatter.format(d2);
-
-  //   // 3. If the calendar dates match, midnight was not crossed.
-  //   return dateStr1 !== dateStr2;
-  // }
 
 }

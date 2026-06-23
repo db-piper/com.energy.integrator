@@ -33,6 +33,22 @@ class DiscoveryCoordinator {
     }
   }
 
+  async terminateApi() {
+    try {
+      await this._initializePromise;
+      if (this._homeyApi) {
+        this.homey.app.log('[DiscoveryCoordinator] Terminating global Web API session...');
+        // If the API instance supports logout/disconnect, invoke it safely
+        if (typeof this._homeyApi.disconnect === 'function') {
+          await this._homeyApi.disconnect();
+        }
+        this._homeyApi = null;
+      }
+    } catch (err) {
+      this.homey.app.error('[DiscoveryCoordinator] Error during API session cleanup:', err);
+    }
+  }
+
   /**
    * Return a fully initialized homey API
    * @returns {Object}          Fully initialized homey API
