@@ -1,6 +1,7 @@
 'use strict';
 
 const Homey = require('homey');
+const DiscoveryCoordinator = require('./modules/discoveryCoordinator');
 
 class EnergyIntegratorApp extends Homey.App {
 
@@ -10,6 +11,22 @@ class EnergyIntegratorApp extends Homey.App {
   async onInit() {
     this.log('Energy Integrator App initializing...');
     this.scheduleGlobalMidnightReset();
+    this.coordinator = new DiscoveryCoordinator(this.homey, this.id);
+  }
+
+  async onUninit() {
+    if (this.midnightTimeout) {
+      this.log(`app.onUninit: Clearing midnight reset timer.`);
+      clearTimeout(this.midnightTimeout);
+      this.midnightTimeout = null;
+      this.log('[App] Midnight reset schedule cancelled cleanly.');
+    }
+
+    if (this.coordinator && typeof this.coordinator.terminateApi === 'function') {
+      await this.coordinator.terminateApi();
+    }   
+    
+    this.coordinator = null;
   }
 
   /**
@@ -61,15 +78,6 @@ class EnergyIntegratorApp extends Homey.App {
     }
     
     this.log('[App] Global midnight reset cycle completed.');
-  }
-
-  async onUninit() {
-    if (this.midnightTimeout) {
-      this.log(`app.onUninit: Clearing midnight reset timer.`);
-      clearTimeout(this.midnightTimeout);
-      this.midnightTimeout = null;
-      this.log('[App] Midnight reset schedule cancelled cleanly.');
-    }
   }
 }
 

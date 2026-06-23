@@ -9,7 +9,7 @@ module.exports = class powerIntegrator extends Homey.Driver {
    * onInit is called when the driver is initialized.
    */
   async onInit() {
-    this.coordinator = new DiscoveryCoordinator(this.homey, 'com.energy.integrator');
+    this.coordinator = this.homey.app.coordinator;
     this.log('[powerIntegrator:onInit] Driver has been initialized');
   }
 
