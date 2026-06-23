@@ -33,7 +33,7 @@
   "drivers": [
     {
       "name": {
-        "en": "Power Integrator"
+        "en": "C1D1 Power Integrator"
       },
       "class": "sensor",
       "capabilities": [
@@ -91,37 +91,13 @@
       ],
       "connectivity": [],
       "images": {
-        "small": "/drivers/power-integrator/assets/images/small.png",
-        "large": "/drivers/power-integrator/assets/images/large.png",
-        "xlarge": "/drivers/power-integrator/assets/images/xlarge.png"
+        "small": "/drivers/c1d1-power-integrator/assets/images/small.png",
+        "large": "/drivers/c1d1-power-integrator/assets/images/large.png",
+        "xlarge": "/drivers/c1d1-power-integrator/assets/images/xlarge.png"
       },
       "pair": [
         {
           "id": "reflection_picker"
-        }
-      ],
-      "settings": [
-        {
-          "id": "reflected_device_id",
-          "type": "text",
-          "label": {
-            "en": "Source Device ID"
-          },
-          "hint": {
-            "en": "Paste the Homey UUID of the physical device you want to mirror."
-          },
-          "value": ""
-        },
-        {
-          "id": "reflected_capability_id",
-          "type": "text",
-          "label": {
-            "en": "Source Capability ID"
-          },
-          "hint": {
-            "en": "The exact capability key name (e.g., measure_power)."
-          },
-          "value": "measure_power"
         }
       ],
       "repair": [
@@ -129,7 +105,7 @@
           "id": "reflection_picker"
         }
       ],
-      "id": "power-integrator"
+      "id": "c1d1-power-integrator"
     }
   ],
   "capabilities": {
