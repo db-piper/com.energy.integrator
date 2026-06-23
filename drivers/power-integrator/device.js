@@ -18,35 +18,40 @@ class PowerIntegratorDevice extends abstractIntegrator {
    * @returns {boolean}                 Indicate target capability has been updated
    */
   updateFromSubscribedCapability(newValue, thisTime) {
+    this.log(`PowerIntegratorDevice.updateFromSubscribedCapability - using hardcoded specs to invoke abstractIntegrator method.`);
+    const thisCapabilityName = "measure_power";
+    const thisMethodName = this.constructor._SUBSCRIPTION_SPECIFICATIONS[thisCapabilityName]?.updateFunctionName;
+    return this[thisMethodName](newValue, thisTime, thisCapabilityName);
 
-    this.log(`PowerIntegratorDevice.updateFromSubscribedCapability: name: ${this.getName()} newValue: ${newValue} thisTime: ${thisTime}`)
-    const lastTime = this.getCapabilityValue('measure_time');
-    const lastPower = this.getCapabilityValue('measure_power') || 0;
-    const firstTime = lastTime === null;
 
-    const updates = [
-      this.setCapabilityValue('measure_time', thisTime),
-      this.setCapabilityValue('measure_power', newValue),
-    ];
+    // this.log(`PowerIntegratorDevice.updateFromSubscribedCapability: name: ${this.getName()} newValue: ${newValue} thisTime: ${thisTime}`)
+    // const lastTime = this.getCapabilityValue('measure_time');
+    // const lastPower = this.getCapabilityValue('measure_power') || 0;
+    // const firstTime = lastTime === null;
 
-    if (!firstTime) {
-      const lastEnergyTotal = this.getCapabilityValue('meter_power') || 0;
-      const lastEnergyToday = this.getCapabilityValue('meter_power.today') || 0;
-      const deltaTime = thisTime - lastTime;
-      const deltaEnergy = (lastPower / 1000) * (deltaTime / 3600000);
-      //const isNewDay = this.includesMidnight(lastTime, thisTime);
-      updates.push(
-        this.setCapabilityValue('meter_power', deltaEnergy + lastEnergyTotal),
-        //this.setCapabilityValue('meter_power.today', deltaEnergy + (isNewDay ? 0 : lastEnergyToday)),
-        this.setCapabilityValue('meter_power.today', deltaEnergy + lastEnergyToday),
-        this.setCapabilityValue('measure_interval', deltaTime / 1000)
-      )
-    }
+    // const updates = [
+    //   this.setCapabilityValue('measure_time', thisTime),
+    //   this.setCapabilityValue('measure_power', newValue),
+    // ];
 
-    Promise.all(updates)
-      .catch(err => this.error('PowerIntegratorDevice.handleReflectedSignal: Error committing capability updates:', err));
+    // if (!firstTime) {
+    //   const lastEnergyTotal = this.getCapabilityValue('meter_power') || 0;
+    //   const lastEnergyToday = this.getCapabilityValue('meter_power.today') || 0;
+    //   const deltaTime = thisTime - lastTime;
+    //   const deltaEnergy = (lastPower / 1000) * (deltaTime / 3600000);
+    //   //const isNewDay = this.includesMidnight(lastTime, thisTime);
+    //   updates.push(
+    //     this.setCapabilityValue('meter_power', deltaEnergy + lastEnergyTotal),
+    //     //this.setCapabilityValue('meter_power.today', deltaEnergy + (isNewDay ? 0 : lastEnergyToday)),
+    //     this.setCapabilityValue('meter_power.today', deltaEnergy + lastEnergyToday),
+    //     this.setCapabilityValue('measure_interval', deltaTime / 1000)
+    //   )
+    // }
 
-    return true;
+    // Promise.all(updates)
+    //   .catch(err => this.error('PowerIntegratorDevice.handleReflectedSignal: Error committing capability updates:', err));
+
+    // return true;
   }
 
 }
