@@ -85,7 +85,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
    */
   async executeMidnightReset() {
     this.log(`[abstractIntegrator] Resetting capabilities for [${this.getName()}]...`);
-    
+
     try {
       const targetResets = [];
 
@@ -99,6 +99,47 @@ module.exports = class abstractIntegrator extends Homey.Device {
       this.error(`[abstractIntegrator] Execution failed for [${this.getName()}]:`, err);
       throw err; // Propagate up to app logs
     }
+  }
+
+  async integrateTimedCapability(newValue, thisTime, targetCapabilityName) {
+    this.log(`abstractIntegrator.integrateTimedCapability: device: ${this.getName()} targetCapabilityName: ${targetCapabilityName}`);
+    this.log(`abstractIntegrator.integrateTimedCapability: newValue: ${newValue} thisTime: ${thisTime}`);
+    const [baseName, subName = ''] = targetCapabilityName.split('.');
+    const dottedSubName = (subName !== '') ? `.${subName}` : '';
+    const todayExtension = (subName !== '') ? '_today' : '.today';
+    const meterPowerName = `meter_power${dottedSubName}`;
+    const meterPowerTodayName = `${meterPowerName}${todayExtension}`;
+    const timeBaseName = `measure_time${dottedSubName}`;
+    const measureIntervalName = `measure_interval${dottedSubName}`;
+    this.log(`abstractIntegrator.integrateTimedCapability: meterPowerName ${meterPowerName} meterPowerTodayName ${meterPowerTodayName}`);
+    this.log(`abstractIntegrator.integrateTimedCapability: timeBaseName ${timeBaseName} measureIntervalName ${measureIntervalName}`);
+
+    const lastTime = this.getCapabilityValue(timeBaseName);
+    const lastPower = this.getCapabilityValue(targetCapabilityName) || 0;
+    const firstTime = lastTime === null;
+
+    const updates = [
+      this.setCapabilityValue(timeBaseName, thisTime),
+      this.setCapabilityValue(targetCapabilityName, newValue),
+    ];
+
+    if (!firstTime) {
+      const lastEnergyTotal = this.getCapabilityValue(meterPowerName) || 0;
+      const lastEnergyToday = this.getCapabilityValue(meterPowerTodayName) || 0;
+      const deltaTime = thisTime - lastTime;
+      const deltaEnergy = (lastPower / 1000) * (deltaTime / 3600000);
+      updates.push(
+        this.setCapabilityValue(meterPowerName, deltaEnergy + lastEnergyTotal),
+        this.setCapabilityValue(meterPowerTodayName, deltaEnergy + lastEnergyToday),
+        this.setCapabilityValue(measureIntervalName, deltaTime / 1000)
+      )
+    }
+
+    Promise.all(updates)
+      .catch(err => this.error('PowerIntegratorDevice.handleReflectedSignal: Error committing capability updates:', err));
+
+    return true;
+
   }
 
   // /**

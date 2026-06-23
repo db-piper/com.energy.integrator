@@ -5,6 +5,12 @@ const abstractIntegrator = require('../../modules/abstractIntegrator')
 
 class PowerIntegratorDevice extends abstractIntegrator {
 
+  static _SUBSCRIPTION_SPECIFICATIONS = {
+    'measure_power': {
+      updateFunctionName: 'integrateTimedCapability' 
+    }
+  }
+
   /**
    * Triggered by the subscribed capability pushing an update
    * @param   {number}      newValue    The new value of the subscribed capability
