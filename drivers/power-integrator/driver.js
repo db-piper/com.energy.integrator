@@ -63,9 +63,6 @@ module.exports = class powerIntegrator extends Homey.Driver {
 
   async onUninit() {
     this.log(`powerIntegrator.onUninit: closing the homey API instance`)
-    if (this.coordinator && typeof this.coordinator.terminateApi === 'function') {
-      await this.coordinator.terminateApi();
-    }
     this.coordinator = null;
   }
 };
