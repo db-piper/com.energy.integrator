@@ -83,7 +83,7 @@
           },
           "decimals": 0,
           "getable": true,
-          "insights": true
+          "insights": false
         }
       },
       "platforms": [
@@ -181,7 +181,7 @@
           },
           "decimals": 0,
           "getable": true,
-          "insights": true
+          "insights": false
         }
       },
       "platforms": [

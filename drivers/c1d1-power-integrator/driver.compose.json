@@ -50,7 +50,7 @@
       },
       "decimals": 0,
       "getable": true,
-      "insights": true
+      "insights": false
     }
   },
   "platforms": [

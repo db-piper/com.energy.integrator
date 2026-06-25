@@ -24,8 +24,8 @@ class EnergyIntegratorApp extends Homey.App {
 
     if (this.coordinator && typeof this.coordinator.terminateApi === 'function') {
       await this.coordinator.terminateApi();
-    }   
-    
+    }
+
     this.coordinator = null;
   }
 
@@ -56,14 +56,14 @@ class EnergyIntegratorApp extends Homey.App {
    */
   async executeGlobalMidnightReset() {
     this.log('[App] Local midnight reached! Executing global device flush...');
-    
-    // 1. Get all drivers registered in your app
-    const drivers = this.getDrivers();
 
+    // 1. Get all drivers registered in your app
+    const drivers = this.homey.drivers.getDrivers();
+    this.log(`app.executeGlobalMidnightReset: drivers found: ${Object.keys(drivers).join(', ')}`);
     for (const driver of Object.values(drivers)) {
       // 2. Get all active, initialized devices for this driver
       const devices = driver.getDevices();
-      
+
       const resetPromises = devices.map(device => {
         // 3. Duck-type check: Does the device implement our abstract reset method?
         if (typeof device.executeMidnightReset === 'function') {
@@ -76,7 +76,7 @@ class EnergyIntegratorApp extends Homey.App {
 
       await Promise.all(resetPromises);
     }
-    
+
     this.log('[App] Global midnight reset cycle completed.');
   }
 }

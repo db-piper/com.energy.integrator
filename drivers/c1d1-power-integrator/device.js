@@ -7,7 +7,8 @@ class PowerIntegratorDevice extends abstractIntegrator {
 
   static _SUBSCRIPTION_SPECIFICATIONS = {
     'measure_power': {
-      updateFunctionName: 'integrateTimedCapability' 
+      updateFunctionName: 'integrateTimedCapability',
+      splitters: [{test: (value) => true, label:''}] 
     }
   }
 
