@@ -9,8 +9,8 @@ class PowerIntegratorDevice extends abstractIntegrator {
     'measure_power': {
       updateFunctionName: 'integrateTimedCapability',
       splitters: [
-        {test: (value) => value >= 0, label: 'import'},
-        {test: (value) => value < 0, label: 'export'}
+        {test: (value) => value >= 0, label: 'input'},
+        {test: (value) => value < 0, label: 'output'}
       ] 
     }
   }

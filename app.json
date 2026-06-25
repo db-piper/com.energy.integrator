@@ -193,6 +193,16 @@
         "large": "/drivers/c1d2-power-integrator/assets/images/large.png",
         "xlarge": "/drivers/c1d2-power-integrator/assets/images/xlarge.png"
       },
+      "pair": [
+        {
+          "id": "reflection_picker"
+        }
+      ],
+      "repair": [
+        {
+          "id": "reflection_picker"
+        }
+      ],
       "id": "c1d2-power-integrator"
     }
   ],

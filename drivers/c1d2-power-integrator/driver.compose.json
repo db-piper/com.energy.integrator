@@ -5,12 +5,12 @@
   "class": "sensor",
   "capabilities": [
     "measure_power",
+    "measure_interval",
     "meter_power.input",
     "meter_power.input_today",
     "meter_power.output",
     "meter_power.output_today",
-    "measure_time",
-    "measure_interval"
+    "measure_time"
   ],
   "capabilitiesOptions": {
     "measure_power": {
