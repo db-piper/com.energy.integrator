@@ -83,5 +83,15 @@
     "small": "{{driverAssetsPath}}/images/small.png",
     "large": "{{driverAssetsPath}}/images/large.png",
     "xlarge": "{{driverAssetsPath}}/images/xlarge.png"
-  }
+  },
+  "pair": [
+    {
+      "id": "reflection_picker"
+    }
+  ],
+  "repair": [
+    {
+      "id": "reflection_picker"
+    }
+  ]
 }
