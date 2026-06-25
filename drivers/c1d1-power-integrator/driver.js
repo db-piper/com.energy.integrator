@@ -45,20 +45,22 @@ module.exports = class c1d1PowerIntegrator extends Homey.Driver {
    * @param     {Homey.Device}     sessionDevice  device being repaired
    */
   onRepair(session, sessionDevice) {
-    this.log(`--- Repair Session Active: ${sessionDevice.getName()} ---`);
+    // Capture the instance context securely
+    const driver = sessionDevice.driver;
+
+    driver.log(`--- Repair Session Active: ${sessionDevice.getName()} ---`);
 
     session.setHandler('get_current_device', async () => {
-      return this.coordinator.getCurrentDevice(sessionDevice);
+      return driver.coordinator.getCurrentDevice(sessionDevice);
     });
 
     session.setHandler('get_system_devices', async (query) => {
-      return this.coordinator.getSystemDevices(query);
+      return driver.coordinator.getSystemDevices(query);
     });
 
     session.setHandler('save_reflection_settings', async (payload) => {
-      return this.coordinator.saveReflectionSettings(sessionDevice, payload);
+      return driver.coordinator.saveReflectionSettings(sessionDevice, payload);
     });
-    
   }
 
   async onUninit() {

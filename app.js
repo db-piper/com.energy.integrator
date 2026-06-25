@@ -1,5 +1,7 @@
 'use strict';
 
+//TODO: Re-write all hard-coded references to measure_power
+
 const Homey = require('homey');
 const DiscoveryCoordinator = require('./modules/discoveryCoordinator');
 

@@ -189,11 +189,14 @@ class DiscoveryCoordinator {
         reflected_capability_id: payload.reflected_capability_id
       };
 
+      sessionDevice.log(`[DEBUG] Target device class name: ${sessionDevice.constructor.name}`);
       await sessionDevice.setSettings({
         reflection_configuration_json: JSON.stringify(configObject)
       });
+      sessionDevice.log(`[DEBUG] Disk commit done. Did onSettings fire?`);
+      await sessionDevice.setupReflectionHandlers(configObject);
 
-      this.log(`[DiscoveryCoordinator] Committed JSON configuration map for measure_power.`);
+      sessionDevice.log(`[DiscoveryCoordinator] Committed JSON configuration map for measure_power.`);
       return true;
     } catch (err) {
       throw new Error(err.message || err.toString());

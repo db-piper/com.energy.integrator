@@ -10,7 +10,9 @@ module.exports = class abstractIntegrator extends Homey.Device {
   async onInit() {
     this.log(`Device [${this.getName()}] initializing...`);
     await this.driver.ready();
-    await this.setupReflectionHandlers();
+    const settings = this.getSettings();
+    const configObject = JSON.parse(settings.reflection_configuration_json || '{}');
+    await this.setupReflectionHandlers(configObject);
   }
 
   /**
@@ -28,7 +30,9 @@ module.exports = class abstractIntegrator extends Homey.Device {
     if (changedKeys.includes('reflection_configuration_json')) {
       this.log(`Device configuration map updated. Re-compiling telemetry paths...`);
 
-      await this.setupReflectionHandlers();
+      const configObject = JSON.parse(newSettings.reflection_configuration_json || '{}');
+
+      await this.setupReflectionHandlers(configObject);
     }
 
     return true;
@@ -71,27 +75,27 @@ module.exports = class abstractIntegrator extends Homey.Device {
   /**
    * Universal Setup: Provisions listener hooks for all user-configured reflections
    */
-  async setupReflectionHandlers() {
+  async setupReflectionHandlers(configObject) {
     this.log(`[abstractIntegrator.reflectionHandlerSetup] Starting reflection handler setup`);
 
     try {
-      // 1. Safely retrieve and parse user pairing configuration
-      const settings = this.getSettings();
-      let configObject = {};
-      try {
-        configObject = JSON.parse(settings.reflection_configuration_json || '{}');
-      } catch (e) {
-        this.error(`[abstractIntegrator.reflectionHandlerSetup] Critical: Failed parsing configuration JSON string.`);
-        return;
-      }
+    //   // 1. Safely retrieve and parse user pairing configuration
+    //   const settings = this.getSettings();
+    //   let configObject = {};
+    //   try {
+    //     configObject = JSON.parse(settings.reflection_configuration_json || '{}');
+    //   } catch (e) {
+    //     this.error(`[abstractIntegrator.reflectionHandlerSetup] Critical: Failed parsing configuration JSON string.`);
+    //     return;
+    //   }
 
       const manifest = this.constructor._SUBSCRIPTION_SPECIFICATIONS || {};
       this._activeSubscriptions = this._activeSubscriptions || {};
 
       // 2. Iterate dynamically over the active configurations chosen during pairing
       for (const targetCapabilityKey of Object.keys(configObject)) {
-
         // Validation Guard: Ensure this capability is declared in our spec manifest
+        this.log(`[abstractIntegrator.setupReflectionHandlers]: Processing capability ${targetCapabilityKey}`);
         if (!manifest[targetCapabilityKey]) {
           this.error(`[abstractIntegrator.reflectionHandlerSetup] Skipped "${targetCapabilityKey}": Not declared in _SUBSCRIPTION_SPECIFICATIONS.`);
           continue;
@@ -129,9 +133,9 @@ module.exports = class abstractIntegrator extends Homey.Device {
         }
       }
 
-      this.log(`[abstractIntegrator.reflectionHandlerSetup] All reflection handlers setup successfully.`);
+      this.log(`[abstractIntegrator.setupReflectionHandlers] All reflection handlers setup successfully.`);
     } catch (err) {
-      this.error(`[abstractIntegrator.reflectionHandlerSetup] Reflection setup failure: ${err.message}`);
+      this.error(`[abstractIntegrator.setupReflectionHandlers] Reflection setup failure: ${err.message}`);
     }
   }
 

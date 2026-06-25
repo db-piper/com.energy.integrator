@@ -39,7 +39,7 @@
     </div>
   </div>
 
-<script type="text/javascript">
+  <script type="text/javascript">
     // ==========================================
     // PART 1: Shared Stateless Bridge Helper
     // ==========================================
@@ -89,7 +89,7 @@
     const filterToggle = document.getElementById('filter-toggle');
 
     const bridge = createHomeyPickerBridge({
-      
+
       onReadLiveSelection: () => ({
         savedDeviceId: devSelect.value || null,
         savedCapId: capSelect.value || null,
@@ -111,7 +111,7 @@
         if (targetDevId && targetDevice) {
           capSelect.innerHTML = '<option value="" selected disabled>-- Select Metric --</option>';
           capSelect.disabled = false;
-          
+
           (targetDevice.capabilities || []).forEach(cap => {
             const option = new Option(cap.title, cap.id);
             if (targetCapId && cap.id === targetCapId) option.selected = true;
@@ -137,8 +137,8 @@
             reflected_device_id: devSelect.value,
             reflected_capability_id: capSelect.value
           })
-          .then(() => { statusText.style.display = 'block'; })
-          .catch(err => console.error('Write-back failed:', err));
+            .then(() => { statusText.style.display = 'block'; })
+            .catch(err => console.error('Write-back failed:', err));
         };
       }
     });
