@@ -79,16 +79,6 @@ module.exports = class abstractIntegrator extends Homey.Device {
     this.log(`[abstractIntegrator.reflectionHandlerSetup] Starting reflection handler setup`);
 
     try {
-    //   // 1. Safely retrieve and parse user pairing configuration
-    //   const settings = this.getSettings();
-    //   let configObject = {};
-    //   try {
-    //     configObject = JSON.parse(settings.reflection_configuration_json || '{}');
-    //   } catch (e) {
-    //     this.error(`[abstractIntegrator.reflectionHandlerSetup] Critical: Failed parsing configuration JSON string.`);
-    //     return;
-    //   }
-
       const manifest = this.constructor._SUBSCRIPTION_SPECIFICATIONS || {};
       this._activeSubscriptions = this._activeSubscriptions || {};
 
@@ -168,89 +158,6 @@ module.exports = class abstractIntegrator extends Homey.Device {
       }
     }
   }
-
-  // /**
-  //  * Establish the reflections declared in the device's manifest
-  //  */
-  // async compileAllSubscriptions() {
-  //   this.log(`[SUPERCLASS COMPILER] Initializing full pipeline compilation...`);
-
-  //   try {
-  //     const manifest = this.constructor._SUBSCRIPTION_SPECIFICATIONS || {};
-  //     const manifestKeys = Object.keys(manifest);
-
-  //     if (manifestKeys.length === 0) return;
-
-  //     const settings = this.getSettings();
-  //     let configObject = {};
-  //     try {
-  //       configObject = JSON.parse(settings.reflection_configuration_json || '{}');
-  //     } catch (e) {
-  //       this.error(`[SUPERCLASS COMPILER] Critical: Failed parsing configuration JSON string.`);
-  //       return;
-  //     }
-
-  //     // Initialize our tracking dictionary if it doesn't exist yet
-  //     this._activeSubscriptions = this._activeSubscriptions || {};
-
-  //     // Pure loop orchestrator—no cleanup responsibility here!
-  //     for (const targetCapabilityKey of manifestKeys) {
-  //       const updateFunctionName = manifest[targetCapabilityKey]?.updateFunctionName;
-  //       await this.compileSingleSubscription(targetCapabilityKey, updateFunctionName, configObject);
-  //     }
-
-  //   } catch (err) {
-  //     this.error(`[SUPERCLASS COMPILER] High-level orchestration failure: ${err.message}`);
-  //   }
-  // }
-
-  // /**
-  //  * Establish the reflection for the target capability using the function and defined by the configuration object
-  //  * @param {string}            targetCapabilityKey    The name of the capability receiving reflected data
-  //  * @param {string}            updateFunctionName     The name of the callback function when reflected data changes
-  //  * @param {Object}            configObject           Relection mappings defined during onPair or onRepair
-  //  */
-  // async compileSingleSubscription(targetCapabilityKey, updateFunctionName, configObject) {
-  //   if (!updateFunctionName || typeof this[updateFunctionName] !== 'function') {
-  //     this.error(`[COMPILER LEAF] Aborted for "${targetCapabilityKey}": Method missing.`);
-  //     return;
-  //   }
-
-  //   const targetMapping = configObject[targetCapabilityKey];
-  //   if (!targetMapping || !targetMapping.reflected_device_id || !targetMapping.reflected_capability_id) {
-  //     return;
-  //   }
-
-  //   const { reflected_device_id, reflected_capability_id } = targetMapping;
-
-  //   try {
-  //     // 1. Clean up the specific previous instance right here before replacing it!
-  //     if (this._activeSubscriptions[targetCapabilityKey]) {
-  //       this.log(`[COMPILER LEAF] Tearing down existing subscription for: ${targetCapabilityKey}`);
-  //       this.driver.coordinator.destroyCapabilitySubscription(this._activeSubscriptions[targetCapabilityKey]);
-  //       delete this._activeSubscriptions[targetCapabilityKey];
-  //     }
-
-  //     this.log(`[COMPILER LEAF] Compiling pipeline: [${reflected_device_id}].${reflected_capability_id} ──► this.${updateFunctionName}()`);
-
-  //     // 2. Provision and store the subscription token keyed by its capability name
-  //     const subscriptionHandle = await this.driver.coordinator.setCapabilitySubscription(
-  //       reflected_device_id,
-  //       reflected_capability_id,
-  //       (val, time) => {
-  //         this[updateFunctionName](val, time, targetCapabilityKey);
-  //       }
-  //     );
-
-  //     if (subscriptionHandle) {
-  //       this._activeSubscriptions[targetCapabilityKey] = subscriptionHandle;
-  //       this.log(`[COMPILER LEAF] Active pipeline hook successfully assigned for ${targetCapabilityKey}.`);
-  //     }
-
-  //   } catch (err) {
-  //     this.error(`[COMPILER LEAF] Execution mapping failed for ${targetCapabilityKey}: ${err.message}`);
-  //   }
-  // }
 
   /**
    * Standardized supervisor method triggered exclusively by the App orchestrator
