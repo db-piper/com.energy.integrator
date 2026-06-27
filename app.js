@@ -34,40 +34,12 @@ class EnergyIntegratorApp extends Homey.App {
     this.coordinator = null;
   }
 
-/**
+  /**
    * Single application-wide clock loop - Zero-Drift Mathematical Targeter
    */
   scheduleGlobalMidnightReset() {
-    const tz = this.homey.clock.getTimezone(); // e.g., "Europe/London"
-    const now = new Date();
-
-    // 1. Get tomorrow's calendar date string using en-CA
-    const dateOpts = { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' };
-    const todayStr = new Intl.DateTimeFormat('en-CA', dateOpts).format(now);
-    const [year, month, day] = todayStr.split('-').map(Number);
-    const tomorrowStr = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().split('T')[0]; // "2026-06-28"
-
-    // 2. Base Anchor: Midnight UTC on that calendar day
-    const utcMidnightEpoch = Date.parse(`${tomorrowStr}T00:00:00.000Z`);
-
-    // 3. Look at what a clock in London reads AT that exact UTC moment
-    const timeOpts = { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-    const targetTimeStr = new Intl.DateTimeFormat('en-CA', timeOpts).format(new Date(utcMidnightEpoch)); // e.g. "01:00:00"
-
-    // 4. Calculate the exact timezone offset in effect AT that future midnight
-    const [tHours, tMinutes, tSeconds] = targetTimeStr.split(':').map(Number);
-    const offsetMsAtMidnight = (tHours * 3600000) + (tMinutes * 60000) + (tSeconds * 1000);
-
-    // 5. Deduct that future offset from the UTC anchor to get the true physical epoch of local midnight
-    const trueMidnightEpoch = utcMidnightEpoch - offsetMsAtMidnight;
-
-    // 6. Absolute physical milliseconds until that exact moment
-    const msToMidnight = trueMidnightEpoch - now.getTime();
-
-    // Debugging logs
-    const currentTimeStr = new Intl.DateTimeFormat('en-CA', timeOpts).format(now);
-    this.log(`[App] Clock Status -> Local Time: ${todayStr} ${currentTimeStr} | Target Reset Date: ${tomorrowStr}`);
-    this.log(`[App] Global midnight reset orchestrated. Firing in ${Math.round(msToMidnight / 1000 / 60)} minutes.`);
+    const msToMidnight = this.getMsToMidnight();
+    this.log(`[App.scheduleGlobalMidnightReset] Firing in ${Math.round(msToMidnight / 1000 / 60)} minutes.`);
 
     this.midnightTimeout = this.homey.setTimeout(async () => {
       try {
@@ -78,9 +50,39 @@ class EnergyIntegratorApp extends Homey.App {
       this.scheduleGlobalMidnightReset(); // Loop recursively for the next day
     }, msToMidnight);
   }
-  
+
   /**
-   * Iterates through drivers and active devices to trigger the flush
+   * Calculate the milliseconds from "now" until next midnight
+   */
+  getMsToMidnight() {
+    const tz = this.homey.clock.getTimezone(); // e.g., "Europe/London"
+    const now = new Date();
+
+    const dateOpts = { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' };
+    const todayStr = new Intl.DateTimeFormat('en-CA', dateOpts).format(now);                      // YYYY-MM-DD
+    const [year, month, day] = todayStr.split('-').map(Number);
+    const [tomorrowStr] = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().split('T');  // YYYY-MM-DD
+    const tomorrowOffset = this.getZoneOffsetAtDate(tomorrowStr, tz);                             // Hours
+    const utcTomorrowMidnight = Date.parse(`${tomorrowStr}T00:00:00.000Z`);                       // Epoch Millis
+    const trueTomorrowMidnightEpoch = utcTomorrowMidnight - (tomorrowOffset * 3600000);           // TZ adjusted Millis
+    return trueTomorrowMidnightEpoch - now.getTime();                                             // Millis interval now until midnight
+  }
+
+  /**
+   * Return the hours offset from UTC of a timezone at midnight on the specified date
+   * @param   {string}        targetDateString        Date in YYYY-MM-DD form 
+   * @param   {string}        timeZone                IANA timezone code (e.g. EUROPE/London)      
+   * @returns {number}                                Hours offset from UTC (UTC+1 or +01:00 gives 1)
+   */
+  getZoneOffsetAtDate(targetDateString, timeZone) {
+    const utcDate = Date.parse(`${targetDateString}T00:00:00.000Z`);
+    const tzDate = Date.parse(new Date(utcDate).toLocaleString('en-CA', { timeZone, hour12: false }));
+
+    return (tzDate - utcDate) / 3600000; 
+  }
+
+  /**
+   * Iterates through drivers and active devices to set daily values to zero at midnight
    */
   async executeGlobalMidnightReset() {
     this.log('[App] Local midnight reached! Executing global device flush...');
