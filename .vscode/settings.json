@@ -1,0 +1,12 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["/app.json", "/.homeycompose/app.json"],
+      "url": "./.vscode/app-schema.json"
+    },
+    {
+      "fileMatch": ["/drivers/*/driver.json", "/.homeycompose/drivers/*/driver.json"],
+      "url": "./.vscode/driver-schema.json"
+    }
+  ]
+}

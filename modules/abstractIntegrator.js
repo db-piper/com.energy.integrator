@@ -243,4 +243,8 @@ module.exports = class abstractIntegrator extends Homey.Device {
 
   }
 
+  async forwardReflectedValue(newValue, thisTime, targetCapabilityName, label) {
+    await this.setCapabilityValue(targetCapabilityName, newValue);
+    return true;
+  }
 }

@@ -1,0 +1,112 @@
+{
+  "name": {
+    "en": "c1d2-battery"
+  },
+  "class": "sensor",
+  "capabilities": [
+    "measure_power",
+    "measure_percent.battery",
+    "meter_power.charging",
+    "meter_power.charging_today",
+    "meter_power.discharging",
+    "meter_power.discharging_today",
+    "measure_interval",
+    "measure_time"
+  ],
+  "capabilitiesOptions": {
+    "measure_power": {
+      "title": {
+        "en": "Power"
+      },
+      "units": {
+        "en": "W"
+      },
+      "decimals": 0,
+      "getable": true
+    },
+    "measure_percent.battery": {
+      "title": {
+        "en": "Battery SOC"
+      },
+      "decimals": 0,
+      "getable": true,
+      "ui": "sensor"
+    },
+    "meter_power.charging": {
+      "title": {
+        "en": "Energy Charging"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "meter_power.charging_today": {
+      "title": {
+        "en": "Energy Charging Today"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "meter_power.discharging": {
+      "title": {
+        "en": "Energy Discharging"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "meter_power.discharging_today": {
+      "title": {
+        "en": "Energy Discharging Today"
+      },
+      "units": {
+        "en": "kWh"
+      },
+      "decimals": 3,
+      "getable": true
+    },
+    "measure_time": {
+      "title": {
+        "en": "Epoch Time"
+      },
+      "units": {
+        "en": "ms"
+      },
+      "decimals": 0,
+      "getable": true,
+      "insights": false
+    }
+  },
+  "pair": [
+    {
+      "id": "list_devices",
+      "template": "list_devices",
+      "navigation" : {"next": "add_device"}
+    },
+    {
+      "id": "add_device",
+      "template": "add_devices"
+    }
+  ],
+  "energy": {
+    "homeBattery": true,
+    "meterPowerImportedCapability": "meter_power.charging",
+    "meterPowerExportedCapability": "meter_power.discharging"
+  },
+  "platforms": [
+    "local"
+  ],
+  "connectivity": [],
+  "images": {
+    "small": "{{driverAssetsPath}}/images/driver_small.png",
+    "large": "{{driverAssetsPath}}/images/driver_large.png",
+    "xlarge": "{{driverAssetsPath}}/images/driver_xlarge.png"
+  }
+}

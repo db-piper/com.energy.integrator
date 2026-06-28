@@ -1,0 +1,15 @@
+{
+  "type": "number",
+  "getable": true,
+  "setable": false,
+  "icon": "/assets/tax.svg",
+  "insights": true,
+  "uiComponent": "sensor",
+  "decimals": 0,
+  "title": {
+    "en": "%"
+  },
+  "units": {
+    "en": "%"
+  }
+}

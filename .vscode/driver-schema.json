@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Homey Driver Manifest Stub",
+  "type": "object",
+  "properties": {
+    "name": { "type": "object" },
+    "class": { "type": "string" },
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "capabilitiesOptions": { "type": "object" },
+    "pair": { "type": "array" }
+  },
+  "patternProperties": {
+    "^capability_options$": {
+      "not": {},
+      "errorMessage": "Did you mean 'capabilitiesOptions' (plural, camelCase)?"
+    }
+  },
+  "additionalProperties": true
+}
