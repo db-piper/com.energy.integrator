@@ -33,6 +33,11 @@
         capabilities</label>
     </div>
 
+    <div class="toggle-group">
+      <input type="checkbox" id="invert-toggle" class="toggle-input">
+      <label  for="invert-toggle" class="toggle-label">Invert +/- Power</label>
+    </div>
+
     <div class="action-bar">
       <button id="btn-close" class="homey-button-primary" disabled>Save & Close</button>
       <div id="status-text" class="status-toast">Configuration committed successfully!</div>
@@ -54,19 +59,19 @@
       }
 
       function syncLandscape() {
-        const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
+        const { savedDeviceId, savedCapId, strictMode, invertPower } = onReadLiveSelection();
 
         window.Homey.emit('get_current_device', {})
           .then(identity => {
             // Compute absolute truth: prioritize live UI state over backend null defaults
             const targetDevId = savedDeviceId || identity.reflected_device_id;
             const targetCapId = savedCapId || identity.reflected_capability_id;
-
+            const targetInvert = invertPower !== null ? invertPower : (identity.invert_power_sign || false);
             return window.Homey.emit('get_system_devices', {
               strict: strictMode,
               currentDeviceId: targetDevId,
               currentCapabilityId: targetCapId
-            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId }));
+            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId, targetInvert }));
           })
           .then(context => {
             onRender(context);
@@ -88,6 +93,7 @@
     const btnClose = document.getElementById('btn-close');
     const statusText = document.getElementById('status-text');
     const filterToggle = document.getElementById('filter-toggle');
+    const invertToggle = document.getElementById('invert-toggle');
 
     const bridge = createHomeyPickerBridge({
 
@@ -95,11 +101,14 @@
       onReadLiveSelection: () => ({
         savedDeviceId: devSelect.value || null,
         savedCapId: capSelect.value || null,
-        strictMode: filterToggle.checked
+        strictMode: filterToggle.checked,
+        invertPower: invertToggle.checked,
       }),
 
       // Handle raw dropdown element population and dynamic UI states
-      onRender: ({ identity, devicesCache, targetDevId, targetCapId }) => {
+      onRender: ({ identity, devicesCache, targetDevId, targetCapId, targetInvert }) => {
+
+        invertToggle.checked = !! targetInvert;
 
         // 1. Populate Device Dropdown
         devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
@@ -147,6 +156,7 @@
 
     // 4. Global static filter checkbox observer
     filterToggle.addEventListener('change', () => bridge.refresh());
+    invertToggle.addEventListener('change', () => bridge.refresh());
 
     // 5. Direct Instantiation Trigger via Homey SDKv3 Engine
     btnClose.addEventListener('click', () => {
@@ -168,7 +178,8 @@
           reflection_configuration_json: JSON.stringify({
             "measure_power": {
               reflected_device_id: devSelect.value,
-              reflected_capability_id: capSelect.value
+              reflected_capability_id: capSelect.value,
+              invert_power_sign: invertToggle.checked
             }
           })
         }

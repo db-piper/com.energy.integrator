@@ -135,27 +135,36 @@ module.exports = class abstractIntegrator extends Homey.Device {
    * @param   {number}        thisTime          The time of the event in epoch milliseconds
    * @param   {string}        capabilityId      The unlabelled name of the capability to be updated
    */
-  /**
-   * Universal Core Router: Evaluates conditions and passes raw data downstream
-   */
   async processReflection(newValue, thisTime, capabilityId) {
     const spec = this.constructor._SUBSCRIPTION_SPECIFICATIONS[capabilityId];
 
     const strategyName = spec ? spec.updateFunctionName : 'updateRawCapability';
     const splitters = (spec && spec.splitters) ? spec.splitters : [{ test: (v) => true, label: '' }];
 
-    for (const rule of splitters) {
-      if (rule.test(newValue)) {
-        const label = rule.label || '';
+    const valueToSet = this.isInvertValue(capabilityId) ? 0-newValue : newValue; 
 
-        // Pass newValue completely raw so the strategy function has full context
+    for (const rule of splitters) {
+      if (rule.test(valueToSet)) {
+        const label = rule.label || '';
         if (typeof this[strategyName] === 'function') {
-          return this[strategyName](newValue, thisTime, capabilityId, label);
+          return this[strategyName](valueToSet, thisTime, capabilityId, label);
         } else {
           this.error(`[Router] Strategy method "${strategyName}" missing.`);
         }
         break;
       }
+    }
+  }
+
+  isInvertValue(capabilityId) {
+    try {
+      const rawConfig = this.getSetting('reflection_configuration_json');
+      if (!rawConfig) return false;
+      const configuration = JSON.parse(rawConfig);
+      return configuration?.[capabilityId]?.invert_power_sign || false;
+    } catch (err) {
+      this.error(`[abstractIntegrator.isInvertValue] Failed to parse reflection configuration JSON:`, err);
+      return false;
     }
   }
 
@@ -191,8 +200,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
    * @returns {boolean}                               Indicates values stored
    */
   async integrateTimedCapability(newValue, thisTime, targetCapabilityName, label) {
-    this.log(`abstractIntegrator.integrateTimedCapability: device: ${this.getName()} targetCapabilityName: ${targetCapabilityName}`);
-    this.log(`abstractIntegrator.integrateTimedCapability: newValue: ${newValue} thisTime: ${thisTime}`);
+    this.log(`abstractIntegrator.integrateTimedCapability: device: ${this.getName()} label: ${label} newValue: ${newValue} thisTime: ${thisTime}`);
     const [baseName, subName = ''] = targetCapabilityName.split('.');
     // 1. Time & Interval tracking matches the sensor subName exactly
     const timeBaseName = subName ? `measure_time.${subName}` : 'measure_time';
@@ -206,9 +214,6 @@ module.exports = class abstractIntegrator extends Homey.Device {
     // 3. Resolve meter capability names based on whether a unified sub-key exists
     const meterPowerName = energySubKey ? `meter_power.${energySubKey}` : 'meter_power';
     const meterPowerTodayName = energySubKey ? `meter_power.${energySubKey}_today` : 'meter_power.today';
-
-    this.log(`abstractIntegrator.integrateTimedCapability: meterPowerName ${meterPowerName} meterPowerTodayName ${meterPowerTodayName}`);
-    this.log(`abstractIntegrator.integrateTimedCapability: timeBaseName ${timeBaseName} measureIntervalName ${measureIntervalName}`);
 
     const lastTime = this.getCapabilityValue(timeBaseName);
     const lastPower = this.getCapabilityValue(targetCapabilityName) || 0;

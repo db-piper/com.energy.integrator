@@ -69,7 +69,8 @@ class DiscoveryCoordinator {
       return {
         id: null,
         reflected_device_id: null,
-        reflected_capability_id: null
+        reflected_capability_id: null,
+        invert_power_sign: false
       };
     }
 
@@ -84,11 +85,14 @@ class DiscoveryCoordinator {
 
     // Extract the flat fallbacks out of our target key context for the picker view
     const measurePowerMapping = configObject["measure_power"] || {};
+    sessionDevice.log(`[DiscoveryCoordinator.getCurrentDevice]: Measure Power for ${sessionDevice.getName()}`);
+    sessionDevice.log(JSON.stringify(measurePowerMapping));
 
     return {
       id: sessionDevice.getData().id,
       reflected_device_id: measurePowerMapping.reflected_device_id || null,
-      reflected_capability_id: measurePowerMapping.reflected_capability_id || null
+      reflected_capability_id: measurePowerMapping.reflected_capability_id || null,
+      invert_power_sign: measurePowerMapping.invert_power_sign || null,
     };
   }
 
@@ -186,7 +190,8 @@ class DiscoveryCoordinator {
       // Dynamically target the key we are working with
       configObject["measure_power"] = {
         reflected_device_id: payload.reflected_device_id,
-        reflected_capability_id: payload.reflected_capability_id
+        reflected_capability_id: payload.reflected_capability_id,
+        invert_power_sign: payload.invert_power_sign,
       };
 
       sessionDevice.log(`[DEBUG] Target device class name: ${sessionDevice.constructor.name}`);

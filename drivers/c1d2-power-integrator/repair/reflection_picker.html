@@ -33,6 +33,11 @@
         capabilities</label>
     </div>
 
+    <div class="toggle-group">
+      <input type="checkbox" id="invert-toggle" class="toggle-input">
+      <label  for="invert-toggle" class="toggle-label">Invert +/- Power</label>
+    </div>
+
     <div class="action-bar">
       <button id="btn-close" class="homey-button-primary" disabled>Save & Close</button>
       <div id="status-text" class="status-toast">Configuration committed successfully!</div>
@@ -54,18 +59,19 @@
       }
 
       function syncLandscape() {
-        const { savedDeviceId, savedCapId, strictMode } = onReadLiveSelection();
+        const { savedDeviceId, savedCapId, strictMode, invertPower } = onReadLiveSelection();
 
         window.Homey.emit('get_current_device', {})
           .then(identity => {
             const targetDevId = savedDeviceId || identity.reflected_device_id;
             const targetCapId = savedCapId || identity.reflected_capability_id;
+            const targetInvert = invertPower !== null ? invertPower : (identity.invert_power_sign || false);
 
             return window.Homey.emit('get_system_devices', {
               strict: strictMode,
               currentDeviceId: targetDevId,
               currentCapabilityId: targetCapId
-            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId }));
+            }).then(devicesCache => ({ identity, devicesCache, targetDevId, targetCapId, targetInvert }));
           })
           .then(context => {
             onRender(context);
@@ -79,7 +85,7 @@
       return { refresh: syncLandscape };
     }
 
-    // ==========================================
+// ==========================================
     // PART 2: Local UI Logic Implementation
     // ==========================================
     const devSelect = document.getElementById('dev-select');
@@ -87,16 +93,45 @@
     const btnClose = document.getElementById('btn-close');
     const statusText = document.getElementById('status-text');
     const filterToggle = document.getElementById('filter-toggle');
+    const invertToggle = document.getElementById('invert-toggle');
+
+    // Keep a local pointer to the active identity context for background saving
+    let currentIdentity = null;
+
+    // Unified Write-Back Handler
+    function commitSettings() {
+      if (!devSelect.value || !capSelect.value || !currentIdentity) return;
+      
+      statusText.style.display = 'none';
+      
+      window.Homey.emit('save_reflection_settings', {
+        target_integrator_id: currentIdentity.id,
+        reflected_device_id: devSelect.value,
+        reflected_capability_id: capSelect.value,
+        invert_power_sign: invertToggle.checked,
+      })
+      .then(() => { 
+        statusText.style.display = 'block'; 
+      })
+      .catch(err => console.error('Write-back failed:', err));
+    }
 
     const bridge = createHomeyPickerBridge({
       
       onReadLiveSelection: () => ({
         savedDeviceId: devSelect.value || null,
         savedCapId: capSelect.value || null,
-        strictMode: filterToggle.checked
+        strictMode: filterToggle.checked,
+        invertPower: devSelect.value ? invertToggle.checked : null,
       }),
 
-      onRender: ({ identity, devicesCache, targetDevId, targetCapId }) => {
+      onRender: ({ identity, devicesCache, targetDevId, targetCapId, targetInvert }) => {
+        // Cache the identity globally so our event listeners can access identity.id safely
+        currentIdentity = identity;
+
+        // Only snap the checkbox state if the user hasn't explicitly clicked it yet
+        invertToggle.checked = !!targetInvert;
+
         // 1. Populate Device Dropdown
         devSelect.innerHTML = '<option value="" selected disabled>-- Select Source Device --</option>';
         Object.keys(devicesCache).forEach(id => {
@@ -124,29 +159,28 @@
           btnClose.disabled = true;
         }
 
-        // 3. Set up standard interactive DOM mutations
+        // 3. UI Element Interaction Overrides
         devSelect.onchange = () => {
           statusText.style.display = 'none';
           bridge.refresh();
         };
 
+        // If they change the capability dropdown, commit it immediately
         capSelect.onchange = () => {
-          statusText.style.display = 'none';
-          window.Homey.emit('save_reflection_settings', {
-            target_integrator_id: identity.id,
-            reflected_device_id: devSelect.value,
-            reflected_capability_id: capSelect.value
-          })
-          .then(() => { statusText.style.display = 'block'; })
-          .catch(err => console.error('Write-back failed:', err));
+          commitSettings();
         };
       }
     });
 
     // 4. Global static UI triggers
     filterToggle.addEventListener('change', () => bridge.refresh());
-    btnClose.addEventListener('click', () => window.Homey.done?.());
-  </script>
+    
+    // When the invert checkbox changes, commit the setting to the backend immediately
+    invertToggle.addEventListener('change', () => {
+      commitSettings();
+    });
+    
+    btnClose.addEventListener('click', () => window.Homey.done?.());  </script>
 </body>
 
 </html>
