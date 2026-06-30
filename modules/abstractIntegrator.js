@@ -9,10 +9,16 @@ module.exports = class abstractIntegrator extends Homey.Device {
    */
   async onInit() {
     this.log(`Device [${this.getName()}] initializing...`);
-    await this.driver.ready();
     const settings = this.getSettings();
     const configObject = JSON.parse(settings.reflection_configuration_json || '{}');
-    await this.setupReflectionHandlers(configObject);
+
+    this.driver.coordinator.ensureDevicesReady(this.driver)
+      .then(async () => {
+        this.log(`[abstractIntegrator.onInit] Passed ensureDevicesReady...`)
+        await this.setupReflectionHandlers(configObject);
+        await this.initialiseForwardingCapabilities(configObject);
+      })      
+      .catch(err => this.error(`[abstractIntegrator.onInit] Failed reflection setup for [${this.getName()}]:`, err));
   }
 
   /**
@@ -70,6 +76,21 @@ module.exports = class abstractIntegrator extends Homey.Device {
     }
 
     this.log(`Device [${this.getName()}] lifecycle stream hooks severed cleanly.`);
+  }
+
+  /**
+   * Simple forwarding capabilities may wait a long time for a change; initialise them to the current value
+   * @param {Object}            configObject      Reflection mappings specified in onPair/onRepair
+   */
+  async initialiseForwardingCapabilities(configObject){
+    for (const [targetCapabilityId, spec] of Object.entries(this.constructor._SUBSCRIPTION_SPECIFICATIONS)) {
+      if (['forwardReflectedValue'].includes(spec.updateFunctionName)) {
+        const mapping = configObject[targetCapabilityId];
+        const forwardingDevice = await this.driver.coordinator.getDeviceById(mapping.reflected_device_id);
+        const currentValue = forwardingDevice.capabilitiesObj[mapping.reflected_capability_id].value;
+        this.setCapabilityValue(targetCapabilityId, currentValue);
+      }
+    }
   }
 
   /**
@@ -141,10 +162,16 @@ module.exports = class abstractIntegrator extends Homey.Device {
     const strategyName = spec ? spec.updateFunctionName : 'updateRawCapability';
     const splitters = (spec && spec.splitters) ? spec.splitters : [{ test: (v) => true, label: '' }];
 
-    const valueToSet = this.isInvertValue(capabilityId) ? 0-newValue : newValue; 
+    const valueToSet = this.isInvertValue(capabilityId) ? 0-newValue : newValue;
+
+    //Integration takes the last power value over the period of time from last event until current event.
+    //The sign of the power being integrated (and thus the label to use) is the sign of the last value not the newValue.
+    //This last value has already been inverted (if required), so should not be reinverted.
+    //Finally the newValue (inverted if needed) is set as the power value ready for the next integration.
+    const priorValue = this.getCapabilityValue(capabilityId);
 
     for (const rule of splitters) {
-      if (rule.test(valueToSet)) {
+      if (rule.test(priorValue)) {
         const label = rule.label || '';
         if (typeof this[strategyName] === 'function') {
           return this[strategyName](valueToSet, thisTime, capabilityId, label);
@@ -156,6 +183,11 @@ module.exports = class abstractIntegrator extends Homey.Device {
     }
   }
 
+  /**
+   * Indicates if the flow of data into the target capability needs to be inverted
+   * @param     {string}    capabilityId        Name of the capability being evaluated 
+   * @returns   {boolean}                       True if the value is to be inverted 
+   */
   isInvertValue(capabilityId) {
     try {
       const rawConfig = this.getSetting('reflection_configuration_json');
@@ -228,7 +260,7 @@ module.exports = class abstractIntegrator extends Homey.Device {
       const lastEnergyTotal = this.getCapabilityValue(meterPowerName) || 0;
       const lastEnergyToday = this.getCapabilityValue(meterPowerTodayName) || 0;
       const deltaTime = thisTime - lastTime;
-      const deltaEnergy = (lastPower / 1000) * (deltaTime / 3600000);
+      const deltaEnergy = (Math.abs(lastPower) / 1000) * (deltaTime / 3600000);
       updates.push(
         this.setCapabilityValue(meterPowerName, deltaEnergy + lastEnergyTotal),
         this.setCapabilityValue(meterPowerTodayName, deltaEnergy + lastEnergyToday),

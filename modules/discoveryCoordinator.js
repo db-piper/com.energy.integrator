@@ -227,7 +227,7 @@ class DiscoveryCoordinator {
       this.homey.app.log(`[DiscoveryCoordinator] Initiating target stream hook for: ${targetId}`);
 
       // Fetch specific device topology mapping
-      const targetDevice = await this._homeyApi.devices.getDevice({ id: targetId });
+      const targetDevice = await this.getDeviceById(targetId);
 
       const capabilityInstance = targetDevice.makeCapabilityInstance(
         targetCapability,
@@ -244,6 +244,39 @@ class DiscoveryCoordinator {
       this.homey.app.error(`[DiscoveryCoordinator] Failed to set target subscription:`, err);
       throw err;
     }
+  }
+
+  /**
+   * Use the devices property of the homeyApi to get a specific device by its id
+   * @param     {string}           deviceId       UUID of the device to be obtained
+   * @returns   {Promise<Object>}                 The device requested
+   */
+  async getDeviceById(deviceId) {
+    const homeyApi = await this.homeyApi();
+    return homeyApi.devices.getDevice({ id: deviceId });
+  }
+
+  /**
+   * Resolves when the Homey API device tree is fully mapped and ready.
+   * Rejects if the Homey API or devices manager is entirely unavailable.
+   * @param   {Homey.driver}     driver     driver instance
+   * @returns {Promise<void>}
+   */
+  async ensureDevicesReady(driver) {
+    driver.log(`[discoverCoordinator.ensureDevicesReady] About to await driver.ready`)
+    await driver.ready()
+
+    driver.log(`[discoverCoordinator.ensureDevicesReady] Obtaining the api.`)
+    const homeyApi = await this.homeyApi();
+    driver.log(`[discoverCoordinator.ensureDevicesReady] Obtaining the devicesManager.`)
+    const devicesManager = homeyApi?.devices;
+    if (!devicesManager) {
+      throw new Error('HomeyAPI devices manager is unavailable.');
+    }
+
+    // 2. Fallback: If 'isReady' isn't flagged, force a fetch to verify if the cache is populated
+    driver.log(`[discoverCoordinator.ensureDevicesReady] Checking devices inventory...`);
+    const devices = await devicesManager.getDevices();
   }
 
   /**

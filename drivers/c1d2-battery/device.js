@@ -15,6 +15,12 @@ module.exports = class PowerIntegratorDevice extends abstractIntegrator {
     },
     'measure_percent.battery': {
       updateFunctionName: 'forwardReflectedValue'
+    },
+    'measure_temperature': {
+      updateFunctionName: 'forwardReflectedValue'
+    },
+    'measure_percent.health': {
+      updateFunctionName: 'forwardReflectedValue'
     }
   }
 

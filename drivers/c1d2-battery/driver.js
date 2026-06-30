@@ -39,6 +39,14 @@ module.exports = class MyDriver extends Homey.Driver {
       "measure_percent.battery": {
         "reflected_device_id": targetId,
         "reflected_capability_id": "measure_percent.soc"
+      },
+      "measure_temperature": {
+        "reflected_device_id": targetId,
+        "reflected_capability_id": "measure_temperature"
+      },
+      "measure_percent.health": {
+        "reflected_device_id": targetId,
+        "reflected_capability_id": "measure_percent.health"
       }
     };
 

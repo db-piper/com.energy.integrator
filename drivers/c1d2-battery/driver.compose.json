@@ -5,11 +5,13 @@
   "class": "sensor",
   "capabilities": [
     "measure_power",
-    "measure_percent.battery",
+    "measure_temperature",
     "meter_power.charging",
     "meter_power.charging_today",
     "meter_power.discharging",
     "meter_power.discharging_today",
+    "measure_percent.battery",
+    "measure_percent.health",    
     "measure_interval",
     "measure_time"
   ],
@@ -24,13 +26,12 @@
       "decimals": 0,
       "getable": true
     },
-    "measure_percent.battery": {
+    "measure_temperature": {
       "title": {
-        "en": "Battery SOC"
+        "en": "Battery Temperature"
       },
       "decimals": 0,
-      "getable": true,
-      "ui": "sensor"
+      "getable": true
     },
     "meter_power.charging": {
       "title": {
@@ -70,6 +71,21 @@
         "en": "kWh"
       },
       "decimals": 3,
+      "getable": true
+    },
+    "measure_percent.battery": {
+      "title": {
+        "en": "Battery SOC"
+      },
+      "decimals": 0,
+      "getable": true,
+      "ui": "sensor"
+    },
+    "measure_percent.health":{
+      "title": {
+        "en": "Battery Health"
+      },
+      "decimals": 0,
       "getable": true
     },
     "measure_time": {
